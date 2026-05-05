@@ -53,9 +53,11 @@ export default function (pi: ExtensionAPI): void {
 			const prompt = args.trim();
 			const branchEntries = ctx.sessionManager.getBranch();
 			const currentHeader = ctx.sessionManager.getHeader();
+			const currentLeafId = ctx.sessionManager.getLeafId();
 			const currentSessionFile = ctx.sessionManager.getSessionFile();
 			const { sessionFile } = await writeBtwSessionFile({
 				currentHeader,
+				currentLeafId,
 				currentSessionFile,
 				branchEntries,
 				cwd: ctx.cwd,

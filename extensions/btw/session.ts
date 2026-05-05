@@ -1,7 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
 
 export const BTW_MARKER_TYPE = "btw-marker";
 export const BTW_TEMP_DIR = join(tmpdir(), "pi-btw");
@@ -45,10 +47,25 @@ export function hasUsedBtwQuestion(branchEntries) {
 export async function writeBtwSessionFile({
 	baseDir = BTW_TEMP_DIR,
 	currentHeader,
+	currentLeafId,
 	currentSessionFile,
 	branchEntries,
 	cwd,
 }) {
+	if (currentSessionFile && currentLeafId && existsSync(currentSessionFile)) {
+		const sessionManager = SessionManager.open(currentSessionFile, baseDir);
+		const sessionFile = sessionManager.createBranchedSession(currentLeafId);
+		if (sessionFile) {
+			const btwSession = SessionManager.open(sessionFile, baseDir);
+			const markerId = btwSession.appendCustomEntry(BTW_MARKER_TYPE);
+			const markerEntry = btwSession.getEntry(markerId);
+			if (!markerEntry || markerEntry.type !== "custom") {
+				throw new Error("Failed to append BTW marker entry");
+			}
+			return { sessionFile, markerEntry };
+		}
+	}
+
 	const timestamp = new Date().toISOString();
 	const fileTimestamp = timestamp.replace(/[:.]/g, "-");
 	const sessionId = randomUUID();
