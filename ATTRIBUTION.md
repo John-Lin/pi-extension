@@ -14,6 +14,7 @@ This repository is licensed under MIT for original work by John Lin. Some files 
 - Imported or adapted paths:
   - `extensions/notify.ts` from `packages/coding-agent/examples/extensions/notify.ts`
   - `extensions/plan-mode/` from `packages/coding-agent/examples/extensions/plan-mode/`
+  - `extensions/status-line.ts` from `packages/coding-agent/examples/extensions/status-line.ts`
 - Notes:
   - `notify.ts` adds macOS completion sound playback and local tests.
   - `plan-mode/` was copied from a local checkout of `pi-mono` on 2026-05-05. The exact upstream commit for the copied files was not separately recorded.
