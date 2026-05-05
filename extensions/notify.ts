@@ -1,6 +1,11 @@
 /**
  * Pi Notify Extension
  *
+ * Adapted from:
+ * https://github.com/badlogic/pi-mono
+ * packages/coding-agent/examples/extensions/notify.ts
+ * License: MIT
+ *
  * Sends a native terminal notification when Pi is ready for input and, on
  * macOS, plays the local completion sound.
  */

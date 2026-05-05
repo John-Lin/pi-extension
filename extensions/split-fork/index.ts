@@ -1,3 +1,12 @@
+/**
+ * Split Fork Extension
+ *
+ * Adapted from:
+ * https://github.com/mitsuhiko/agent-stuff
+ * extensions/split-fork.ts
+ * License: Apache-2.0
+ */
+
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
 import { existsSync, promises as fs } from "node:fs";
 import * as path from "node:path";
