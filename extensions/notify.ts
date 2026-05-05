@@ -10,7 +10,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const NOTIFY_TITLE = "Pi";
 const NOTIFY_BODY = "Ready for input";
-const SOUND_FILE = "/System/Library/Sounds/Glass.aiff";
+const SOUND_FILE = "/System/Library/Sounds/Blow.aiff";
 
 type PiExecutor = Pick<ExtensionAPI, "exec">;
 type PlatformName = NodeJS.Platform | (string & {});

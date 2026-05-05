@@ -67,7 +67,7 @@ test("handleAgentEnd sends OSC 777 notification and macOS sound", async () => {
 	assert.deepEqual(stdoutWrites, ["\u001b]777;notify;Pi;Ready for input\u0007"]);
 	assert.deepEqual(windowsToasts, []);
 	assert.deepEqual(pi.execCalls, [
-		{ command: "afplay", args: ["/System/Library/Sounds/Glass.aiff"] },
+		{ command: "afplay", args: ["/System/Library/Sounds/Blow.aiff"] },
 	]);
 });
 
@@ -91,7 +91,7 @@ test("handleAgentEnd uses Kitty notifications and still plays macOS sound", asyn
 		"\u001b]99;i=1:p=body;Ready for input\u001b\\",
 	]);
 	assert.deepEqual(pi.execCalls, [
-		{ command: "afplay", args: ["/System/Library/Sounds/Glass.aiff"] },
+		{ command: "afplay", args: ["/System/Library/Sounds/Blow.aiff"] },
 	]);
 });
 
@@ -119,7 +119,7 @@ test("handleAgentEnd uses Windows toast and skips sound on non-macOS", async () 
 test("getCompletionSoundCommand leaves a Linux hook for future support", () => {
 	assert.deepEqual(getCompletionSoundCommand("darwin"), {
 		command: "afplay",
-		args: ["/System/Library/Sounds/Glass.aiff"],
+		args: ["/System/Library/Sounds/Blow.aiff"],
 	});
 	assert.equal(getCompletionSoundCommand("linux"), null);
 });
