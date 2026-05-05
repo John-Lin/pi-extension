@@ -1,15 +1,15 @@
 import { unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { buildBtwStartupCommand } from "./btw-launch.mjs";
+import { buildBtwStartupCommand } from "./launch.ts";
 import {
 	buildGhosttyBtwSplitScript,
 	buildGhosttyInputScript,
 	parseGhosttyLaunchResult,
-} from "./btw-ghostty.mjs";
-import { writeBtwSessionFile } from "./btw-session.mjs";
+} from "./ghostty.ts";
+import { writeBtwSessionFile } from "./session.ts";
 
-const childExtensionPath = fileURLToPath(new URL("./btw-child.ts", import.meta.url));
+const childExtensionPath = fileURLToPath(new URL("./child.ts", import.meta.url));
 
 async function cleanupTempSession(sessionFile: string | undefined): Promise<void> {
 	if (!sessionFile) {

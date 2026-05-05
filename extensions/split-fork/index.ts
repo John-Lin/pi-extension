@@ -6,12 +6,12 @@ import {
 	getSplitDirectionForTerminalCount,
 	parseGhosttyLaunchResult,
 	parseGhosttyTerminalCount,
-} from "./split-fork-layout.mjs";
-import { buildGhosttyTerminalCountScript } from "./split-fork-count-osascript.mjs";
+} from "./layout.ts";
+import { buildGhosttyTerminalCountScript } from "./count-osascript.ts";
 import {
 	buildGhosttyInputScript,
 	buildGhosttyLaunchScript,
-} from "./split-fork-osascript.mjs";
+} from "./osascript.ts";
 
 type SplitDirection = "right" | "down";
 type ForkedSessionInfo = {
