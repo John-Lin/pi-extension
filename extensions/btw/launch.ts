@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { BTW_STARTUP_PROMPT_ENV, encodeBtwStartupPrompt } from "./startup-prompt.ts";
 
 export function shellQuote(value) {
 	if (value.length === 0) return "''";
@@ -22,7 +23,11 @@ export function getPiInvocationParts() {
 }
 
 export function buildBtwStartupCommand({ sessionFile, childExtensionPath, prompt }) {
-	const envPrefix = `PI_BTW_TEMP_SESSION=${shellQuote(sessionFile)}`;
+	const envAssignments = [`PI_BTW_TEMP_SESSION=${shellQuote(sessionFile)}`];
+	const encodedPrompt = encodeBtwStartupPrompt(prompt);
+	if (encodedPrompt) {
+		envAssignments.push(`${BTW_STARTUP_PROMPT_ENV}=${shellQuote(encodedPrompt)}`);
+	}
 	const commandParts = [
 		...getPiInvocationParts(),
 		"--session",
@@ -34,12 +39,5 @@ export function buildBtwStartupCommand({ sessionFile, childExtensionPath, prompt
 		childExtensionPath,
 	];
 
-	// pi's arg parser does NOT treat `--` as POSIX end-of-options; it swallows
-	// the next arg as an unknown empty-named flag (cli/args.js). Append the
-	// prompt directly as a positional message instead.
-	if (prompt) {
-		commandParts.push(prompt);
-	}
-
-	return `${envPrefix} ${commandParts.map(shellQuote).join(" ")}; rm -f ${shellQuote(sessionFile)}`;
+	return `${envAssignments.join(" ")} ${commandParts.map(shellQuote).join(" ")}; rm -f ${shellQuote(sessionFile)}`;
 }

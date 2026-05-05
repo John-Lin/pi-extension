@@ -21,6 +21,11 @@ import {
 	buildGhosttyInputScript,
 	buildGhosttyLaunchScript,
 } from "./osascript.ts";
+import {
+	SPLIT_FORK_STARTUP_PROMPT_ENV,
+	consumeSplitForkStartupPrompt,
+	encodeSplitForkStartupPrompt,
+} from "./startup-prompt.ts";
 
 type SplitDirection = "right" | "down";
 type ForkedSessionInfo = {
@@ -47,21 +52,22 @@ function getPiInvocationParts(): string[] {
 	return ["pi"];
 }
 
-function buildPiStartupInput(sessionFile: string | undefined, prompt: string): string {
+export function buildPiStartupInput(sessionFile: string | undefined, prompt: string): string {
+	const envAssignments: string[] = [];
+	const encodedPrompt = encodeSplitForkStartupPrompt(prompt);
+	if (encodedPrompt) {
+		envAssignments.push(`${SPLIT_FORK_STARTUP_PROMPT_ENV}=${shellQuote(encodedPrompt)}`);
+	}
+
 	const commandParts = [...getPiInvocationParts()];
 
 	if (sessionFile) {
 		commandParts.push("--session", sessionFile);
 	}
 
-	// pi's arg parser does NOT treat `--` as POSIX end-of-options; it swallows
-	// the next arg as an unknown empty-named flag (cli/args.js). Append the
-	// prompt directly as a positional message instead.
-	if (prompt.length > 0) {
-		commandParts.push(prompt);
-	}
-
-	return `${commandParts.map(shellQuote).join(" ")}\n`;
+	const command = commandParts.map(shellQuote).join(" ");
+	const prefix = envAssignments.length > 0 ? `${envAssignments.join(" ")} ` : "";
+	return `${prefix}${command}\n`;
 }
 
 async function createForkedSession(ctx: ExtensionCommandContext): Promise<ForkedSessionInfo> {
@@ -129,6 +135,22 @@ async function sendStartupInput(pi: ExtensionAPI, terminalId: string, startupInp
 }
 
 export default function (pi: ExtensionAPI): void {
+	let startupPromptSent = false;
+
+	pi.on("session_start", async () => {
+		if (startupPromptSent) {
+			return;
+		}
+
+		const startupPrompt = consumeSplitForkStartupPrompt();
+		if (!startupPrompt) {
+			return;
+		}
+
+		startupPromptSent = true;
+		pi.sendUserMessage(startupPrompt);
+	});
+
 	pi.registerCommand("split-fork", {
 		description: "Fork this session into a new pi process in chained Ghostty splits. Usage: /split-fork [optional prompt]",
 		handler: async (args, ctx) => {
