@@ -17,6 +17,12 @@
     "@mariozechner/pi-coding-agent": "^0.73.0",
     "@mariozechner/pi-tui": "*"
   },
+  "devDependencies": {
+    "@mariozechner/pi-agent-core": "*",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "^0.73.0",
+    "@mariozechner/pi-tui": "*"
+  },
   "pi": {
     "extensions": [
       "./extensions"
