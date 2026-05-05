@@ -24,17 +24,54 @@ Pi auto-discovers top-level extension files and directory entrypoints like `exte
 
 ## Usage
 
-Load a single extension for testing:
+### Quick testing
+
+Load a single extension without installing the package:
 
 ```bash
 pi -e ./extensions/notify.ts
 pi -e ./extensions/btw/index.ts
 ```
 
-Install this repository as a project-local pi package:
+### Development install
+
+Install the local checkout while developing extensions:
 
 ```bash
+# Global install from the local checkout
+pi install /path/to/pi-extension
+
+# Project-local install from the local checkout
 pi install -l /path/to/pi-extension
+```
+
+After changing an extension, restart pi or run `/reload` in an existing session.
+
+### Git install
+
+Install this repository from GitHub:
+
+```bash
+# Global install
+pi install git:github.com/John-Lin/pi-extension
+
+# Project-local install
+pi install -l git:github.com/John-Lin/pi-extension
+```
+
+### Updating an installed copy
+
+If you installed the local checkout, update the files in this repository and then restart pi or run `/reload`.
+You do not need to run `pi install` again unless the install source changes.
+
+If you installed from GitHub, pull the latest version with:
+
+```bash
+# Global install update
+pi update git:github.com/John-Lin/pi-extension
+
+# Project-local install update
+pi update -l git:github.com/John-Lin/pi-extension
 ```
 
 After installation, pi loads extensions from `extensions/` using the `pi` manifest in `package.json`.
