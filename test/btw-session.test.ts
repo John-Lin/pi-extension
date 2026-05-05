@@ -49,17 +49,19 @@ test("writeBtwSessionFile preserves labels from the active path clone", async ()
 			timestamp: Date.now(),
 		});
 
+		const sourceSessionFile = sessionManager.getSessionFile();
 		const { sessionFile } = await writeBtwSessionFile({
 			baseDir: btwDir,
 			currentHeader: sessionManager.getHeader(),
 			currentLeafId: activeAssistantId,
-			currentSessionFile: sessionManager.getSessionFile(),
+			currentSessionFile: sourceSessionFile,
 			branchEntries: sessionManager.getBranch(),
 			cwd,
 		});
 
 		const btwSession = SessionManager.open(sessionFile, btwDir);
 		assert.equal(btwSession.getLabel(rootUserId), "keep-me");
+		assert.equal(btwSession.getHeader().parentSession, sourceSessionFile);
 	} finally {
 		await rm(tempRoot, { recursive: true, force: true });
 	}
@@ -103,6 +105,7 @@ test("writeBtwSessionFile falls back to branch entry copy when no persisted sess
 		assert.equal(branchEntries.at(-1)?.type, "custom");
 		assert.equal(branchEntries.at(-1)?.customType, "btw-marker");
 		assert.equal(markerEntry.customType, "btw-marker");
+		assert.equal(btwSession.getHeader().parentSession, undefined);
 	} finally {
 		await rm(tempRoot, { recursive: true, force: true });
 	}

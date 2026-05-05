@@ -32,8 +32,6 @@ export function buildBtwStartupCommand({ sessionFile, childExtensionPath, prompt
 		...getPiInvocationParts(),
 		"--session",
 		sessionFile,
-		"--thinking",
-		"off",
 		"--no-tools",
 		"-e",
 		childExtensionPath,
