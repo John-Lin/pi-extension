@@ -1,4 +1,11 @@
 /**
+ * Plan Mode Utilities
+ *
+ * Adapted from:
+ * https://github.com/badlogic/pi-mono
+ * packages/coding-agent/examples/extensions/plan-mode/utils.ts
+ * License: MIT
+ *
  * Pure utility functions for plan mode.
  * Extracted for testability.
  */

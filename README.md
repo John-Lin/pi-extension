@@ -80,3 +80,9 @@ pi update -l git:github.com/John-Lin/pi-extension
 ```
 
 After installation, pi loads extensions from `extensions/` using the `pi` manifest in `package.json`.
+
+## License
+
+Original work in this repository is licensed under MIT. See `LICENSE`.
+
+Adapted third-party code and license copies are documented in `ATTRIBUTION.md` and `third_party/licenses/`.

@@ -2,6 +2,7 @@
   "name": "pi-extension",
   "version": "0.0.0",
   "description": "John's pi extensions",
+  "license": "MIT",
   "type": "module",
   "keywords": [
     "pi-package",

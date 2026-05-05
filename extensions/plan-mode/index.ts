@@ -1,6 +1,11 @@
 /**
  * Plan Mode Extension
  *
+ * Adapted from:
+ * https://github.com/badlogic/pi-mono
+ * packages/coding-agent/examples/extensions/plan-mode/index.ts
+ * License: MIT
+ *
  * Read-only exploration mode for safe code analysis.
  * When enabled, only read-only tools are available.
  *
