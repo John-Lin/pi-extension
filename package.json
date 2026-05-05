@@ -10,6 +10,12 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts"
   },
+  "peerDependencies": {
+    "@mariozechner/pi-agent-core": "*",
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
   "pi": {
     "extensions": [
       "./extensions"

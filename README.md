@@ -18,6 +18,10 @@ extensions/
     count-osascript.ts
     layout.ts
     osascript.ts
+  plan-mode/
+    index.ts
+    utils.ts
+    README.md
 ```
 
 Pi auto-discovers top-level extension files and directory entrypoints like `extensions/btw/index.ts`.
@@ -31,6 +35,7 @@ Load a single extension without installing the package:
 ```bash
 pi -e ./extensions/notify.ts
 pi -e ./extensions/btw/index.ts
+pi -e ./extensions/plan-mode/index.ts
 ```
 
 ### Development install
