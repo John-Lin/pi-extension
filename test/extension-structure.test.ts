@@ -39,7 +39,6 @@ test("btw helper modules stay importable from the directory layout", async () =>
 	const sessionModule = await import("../extensions/btw/session.ts");
 
 	assert.equal(sessionModule.BTW_MARKER_TYPE, "btw-marker");
-	assert.equal(sessionModule.hasUsedBtwQuestion([]), false);
 });
 
 test("split-fork directory entrypoint registers the split-fork command", async () => {

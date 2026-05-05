@@ -61,3 +61,41 @@ test("btw child sends startup prompt from env on session start", async () => {
 		else process.env.PI_BTW_STARTUP_PROMPT_B64 = previousPrompt;
 	}
 });
+
+test("btw child hides the editor and does not gate user input", async () => {
+	const previousSession = process.env.PI_BTW_TEMP_SESSION;
+	process.env.PI_BTW_TEMP_SESSION = "/tmp/btw-session.jsonl";
+
+	try {
+		const pi = createChildExtensionStub();
+		childExtension(pi);
+
+		// Direction 2: input is dropped because the editor is hidden — no input gate.
+		assert.equal(pi.handlers.has("input"), false);
+
+		const setEditorCalls: unknown[] = [];
+		const setFooterCalls: unknown[] = [];
+		const sessionStart = pi.handlers.get("session_start");
+		assert.ok(sessionStart);
+		await sessionStart?.(
+			{},
+			{
+				hasUI: true,
+				ui: {
+					setEditorComponent: (factory: unknown) => setEditorCalls.push(factory),
+					setFooter: (factory: unknown) => setFooterCalls.push(factory),
+					notify: () => {},
+				},
+			},
+		);
+
+		assert.equal(setEditorCalls.length, 1);
+		assert.equal(typeof setEditorCalls[0], "function");
+		assert.equal(setFooterCalls.length, 1);
+		const footerFactory = setFooterCalls[0] as () => { render: (w: number) => string[] };
+		assert.deepEqual(footerFactory().render(80), []);
+	} finally {
+		if (previousSession === undefined) delete process.env.PI_BTW_TEMP_SESSION;
+		else process.env.PI_BTW_TEMP_SESSION = previousSession;
+	}
+});

@@ -51,11 +51,17 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			const prompt = args.trim();
+			if (!prompt) {
+				ctx.ui.notify("Usage: /btw <question>. BTW panes require a question at launch.", "warning");
+				return;
+			}
 			const branchEntries = ctx.sessionManager.getBranch();
 			const currentHeader = ctx.sessionManager.getHeader();
+			const currentLeafId = ctx.sessionManager.getLeafId();
 			const currentSessionFile = ctx.sessionManager.getSessionFile();
 			const { sessionFile } = await writeBtwSessionFile({
 				currentHeader,
+				currentLeafId,
 				currentSessionFile,
 				branchEntries,
 				cwd: ctx.cwd,
@@ -88,10 +94,7 @@ export default function (pi: ExtensionAPI): void {
 				return;
 			}
 
-			ctx.ui.notify(
-				prompt ? "Opened a BTW pane below with your question." : "Opened a BTW pane below. Ask one question there.",
-				"info",
-			);
+			ctx.ui.notify("Opened a BTW pane below with your question.", "info");
 		},
 	});
 }

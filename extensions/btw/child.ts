@@ -1,24 +1,16 @@
 import { unlink } from "node:fs/promises";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { hasUsedBtwQuestion } from "./session.ts";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { HiddenEditor } from "./hidden-editor.ts";
 import { consumeBtwStartupPrompt } from "./startup-prompt.ts";
 
 const BTW_SYSTEM_PROMPT = [
 	"You are BTW, a one-shot side assistant running in a temporary split pane.",
-	"Answer exactly one follow-up question using only the conversation context already present in this session.",
+	"Answer the launched question using only the conversation context already present in this session.",
 	"Do not ask clarifying questions unless the answer would be impossible without them.",
 	"Do not use tools.",
 	"Keep the answer concise, direct, and practical.",
 	"If the answer cannot be determined from the available context, say so briefly.",
 ].join(" ");
-
-function isSlashCommand(text: string): boolean {
-	return text.trim().startsWith("/");
-}
-
-function hasConsumedSingleQuestion(ctx: ExtensionContext): boolean {
-	return hasUsedBtwQuestion(ctx.sessionManager.getBranch());
-}
 
 export default function (pi: ExtensionAPI): void {
 	let startupPromptSent = false;
@@ -29,7 +21,15 @@ export default function (pi: ExtensionAPI): void {
 
 	pi.on("session_start", async (_event, ctx) => {
 		if (ctx.hasUI) {
-			ctx.ui.notify("BTW mode: ask one question in this split. Tools are disabled.", "info");
+			ctx.ui.setEditorComponent((tui, theme, keybindings) => new HiddenEditor(tui, theme, keybindings));
+			// Replace built-in footer with an empty one so token/cost/model stats
+			// and any extension setStatus contributions disappear from the BTW pane.
+			// The streaming spinner lives in a separate container, so it stays visible.
+			ctx.ui.setFooter(() => ({
+				render: () => [],
+				invalidate: () => {},
+			}));
+			ctx.ui.notify("BTW mode: input is disabled in this pane.", "info");
 		}
 
 		if (startupPromptSent) {
@@ -56,36 +56,9 @@ export default function (pi: ExtensionAPI): void {
 		return { block: true, reason: "btw sessions do not allow tools." };
 	});
 
-	pi.on("input", async (event, ctx) => {
-		const text = event.text.trim();
-		if (!text) {
-			return { action: "continue" };
-		}
-
-		if (isSlashCommand(text)) {
-			return { action: "continue" };
-		}
-
-		if (text.startsWith("!")) {
-			if (ctx.hasUI) {
-				ctx.ui.notify("BTW is question-only. Shell commands are disabled here.", "warning");
-			}
-			return { action: "handled" };
-		}
-
-		if (hasConsumedSingleQuestion(ctx)) {
-			if (ctx.hasUI) {
-				ctx.ui.notify("BTW accepts only one question. Close this pane and run /btw again.", "warning");
-			}
-			return { action: "handled" };
-		}
-
-		return { action: "continue" };
-	});
-
 	pi.on("agent_end", async (_event, ctx) => {
-		if (hasConsumedSingleQuestion(ctx) && ctx.hasUI) {
-			ctx.ui.notify("BTW answer complete. This pane is now read-only; close it when you are done.", "info");
+		if (ctx.hasUI) {
+			ctx.ui.notify("BTW answer complete. Close this pane when you are done.", "info");
 		}
 	});
 

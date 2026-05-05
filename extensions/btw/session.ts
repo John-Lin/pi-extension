@@ -1,7 +1,17 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
+
+async function fileExists(path) {
+	try {
+		await access(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 export const BTW_MARKER_TYPE = "btw-marker";
 export const BTW_TEMP_DIR = join(tmpdir(), "pi-btw");
@@ -20,35 +30,29 @@ export function createBtwMarkerEntry(parentId, timestamp = new Date().toISOStrin
 	};
 }
 
-export function hasUsedBtwQuestion(branchEntries) {
-	let lastMarkerIndex = -1;
-	for (let i = 0; i < branchEntries.length; i++) {
-		const entry = branchEntries[i];
-		if (entry?.type === "custom" && entry.customType === BTW_MARKER_TYPE) {
-			lastMarkerIndex = i;
-		}
-	}
-
-	if (lastMarkerIndex < 0) {
-		return false;
-	}
-
-	for (const entry of branchEntries.slice(lastMarkerIndex + 1)) {
-		if (entry?.type === "message" && entry.message?.role === "user") {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 export async function writeBtwSessionFile({
 	baseDir = BTW_TEMP_DIR,
 	currentHeader,
+	currentLeafId,
 	currentSessionFile,
 	branchEntries,
 	cwd,
 }) {
+	if (currentSessionFile && currentLeafId && (await fileExists(currentSessionFile))) {
+		// createBranchedSession mutates the manager in place: after the call, this
+		// instance is now the BTW session, so reuse it for the marker append.
+		const sessionManager = SessionManager.open(currentSessionFile, baseDir);
+		const sessionFile = sessionManager.createBranchedSession(currentLeafId);
+		if (sessionFile) {
+			const markerId = sessionManager.appendCustomEntry(BTW_MARKER_TYPE);
+			const markerEntry = sessionManager.getEntry(markerId);
+			if (!markerEntry || markerEntry.type !== "custom") {
+				throw new Error("Failed to append BTW marker entry");
+			}
+			return { sessionFile, markerEntry };
+		}
+	}
+
 	const timestamp = new Date().toISOString();
 	const fileTimestamp = timestamp.replace(/[:.]/g, "-");
 	const sessionId = randomUUID();
