@@ -1,6 +1,7 @@
 import { unlink } from "node:fs/promises";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { hasUsedBtwQuestion } from "./session.ts";
+import { consumeBtwStartupPrompt } from "./startup-prompt.ts";
 
 const BTW_SYSTEM_PROMPT = [
 	"You are BTW, a one-shot side assistant running in a temporary split pane.",
@@ -20,6 +21,7 @@ function hasConsumedSingleQuestion(ctx: ExtensionContext): boolean {
 }
 
 export default function (pi: ExtensionAPI): void {
+	let startupPromptSent = false;
 	// Pi auto-discovers top-level extension entrypoints, so without this gate the
 	// BTW prompt and tool block would leak into normal sessions.
 	// Only activate when invoked as a /btw child (env var set by launch.ts).
@@ -29,6 +31,18 @@ export default function (pi: ExtensionAPI): void {
 		if (ctx.hasUI) {
 			ctx.ui.notify("BTW mode: ask one question in this split. Tools are disabled.", "info");
 		}
+
+		if (startupPromptSent) {
+			return;
+		}
+
+		const startupPrompt = consumeBtwStartupPrompt();
+		if (!startupPrompt) {
+			return;
+		}
+
+		startupPromptSent = true;
+		pi.sendUserMessage(startupPrompt);
 	});
 
 	pi.on("before_agent_start", async (event) => {
