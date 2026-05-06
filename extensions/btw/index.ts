@@ -1,52 +1,94 @@
-import { unlink } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import type { AssistantMessage, Message } from "@mariozechner/pi-ai";
+import { streamSimple } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { buildBtwStartupCommand } from "./launch.ts";
-import {
-	buildGhosttyBtwSplitScript,
-	buildGhosttyInputScript,
-	parseGhosttyLaunchResult,
-} from "./ghostty.ts";
-import { writeBtwSessionFile } from "./session.ts";
+import { BtwBottomOverlay } from "./panel.ts";
 
-const childExtensionPath = fileURLToPath(new URL("./child.ts", import.meta.url));
+const BTW_SYSTEM_PROMPT = [
+	"You are BTW, a one-shot side assistant running in a temporary bottom overlay.",
+	"Answer the launched question using only the conversation context already present in this session.",
+	"Do not ask clarifying questions unless the answer would be impossible without them.",
+	"Do not use tools.",
+	"Keep the answer concise, direct, and practical.",
+	"If the answer cannot be determined from the available context, say so briefly.",
+].join(" ");
 
-async function cleanupTempSession(sessionFile: string | undefined): Promise<void> {
-	if (!sessionFile) {
+function buildBtwMessages(branchEntries: Array<{ type: string; message?: Message }>, question: string): Message[] {
+	const messages = branchEntries
+		.filter((entry): entry is { type: "message"; message: Message } => entry.type === "message" && !!entry.message)
+		.map((entry) => entry.message);
+
+	messages.push({
+		role: "user",
+		content: [{ type: "text", text: question }],
+		timestamp: Date.now(),
+	});
+
+	return messages;
+}
+
+function extractAssistantText(message: AssistantMessage): string {
+	return message.content
+		.filter((part): part is Extract<AssistantMessage["content"][number], { type: "text" }> => part.type === "text")
+		.map((part) => part.text)
+		.join("");
+}
+
+async function streamBtwAnswer(
+	panel: BtwBottomOverlay,
+	ctx: ExtensionCommandContext,
+	question: string,
+	apiKey: string,
+	headers: Record<string, string> | undefined,
+): Promise<void> {
+	const answerStream = streamSimple(
+		ctx.model!,
+		{
+			systemPrompt: BTW_SYSTEM_PROMPT,
+			messages: buildBtwMessages(ctx.sessionManager.getBranch() as Array<{ type: string; message?: Message }>, question),
+		},
+		{
+			apiKey,
+			headers,
+			signal: panel.signal,
+		},
+	);
+
+	let finalMessage: AssistantMessage | undefined;
+	for await (const event of answerStream) {
+		if (event.type === "text_delta") {
+			panel.appendAnswer(event.delta);
+			continue;
+		}
+
+		if (event.type === "done") {
+			finalMessage = event.message;
+			continue;
+		}
+
+		if (event.type === "error") {
+			finalMessage = event.error;
+		}
+	}
+
+	finalMessage ??= await answerStream.result();
+	if (panel.isClosed()) {
 		return;
 	}
 
-	try {
-		await unlink(sessionFile);
-	} catch {
-		// Ignore best-effort cleanup failures for temporary BTW sessions.
-	}
-}
-
-async function launchBtwSplit(pi: ExtensionAPI, cwd: string) {
-	const result = await pi.exec("osascript", ["-e", buildGhosttyBtwSplitScript(), "--", cwd]);
-	if (result.code !== 0) {
-		return { result, launch: null };
+	if (finalMessage.stopReason === "error" || finalMessage.stopReason === "aborted") {
+		panel.fail(finalMessage.errorMessage ?? "BTW request failed.");
+		return;
 	}
 
-	const launch = parseGhosttyLaunchResult(result.stdout);
-	if (!launch) {
-		return { result, launch: null };
-	}
-
-	return { result, launch };
-}
-
-async function sendStartupCommand(pi: ExtensionAPI, terminalId: string, startupCommand: string) {
-	return pi.exec("osascript", ["-e", buildGhosttyInputScript(), "--", terminalId, startupCommand]);
+	panel.finish(extractAssistantText(finalMessage));
 }
 
 export default function (pi: ExtensionAPI): void {
 	pi.registerCommand("btw", {
-		description: "Open a single-question BTW side pane.",
+		description: "Open a one-shot BTW assistant in a bottom overlay.",
 		handler: async (args, ctx: ExtensionCommandContext) => {
-			if (process.platform !== "darwin") {
-				ctx.ui.notify("/btw currently requires macOS and Ghostty.", "warning");
+			if (!ctx.hasUI) {
+				ctx.ui.notify("/btw requires interactive mode.", "warning");
 				return;
 			}
 
@@ -55,46 +97,39 @@ export default function (pi: ExtensionAPI): void {
 				ctx.ui.notify("Usage: /btw <question>. BTW panes require a question at launch.", "warning");
 				return;
 			}
-			const branchEntries = ctx.sessionManager.getBranch();
-			const currentHeader = ctx.sessionManager.getHeader();
-			const currentLeafId = ctx.sessionManager.getLeafId();
-			const currentSessionFile = ctx.sessionManager.getSessionFile();
-			const { sessionFile } = await writeBtwSessionFile({
-				currentHeader,
-				currentLeafId,
-				currentSessionFile,
-				branchEntries,
-				cwd: ctx.cwd,
-			});
-			const startupCommand = buildBtwStartupCommand({
-				sessionFile,
-				childExtensionPath,
-				prompt,
-			});
-			const { result, launch } = await launchBtwSplit(pi, ctx.cwd);
 
-			if (result.code !== 0) {
-				await cleanupTempSession(sessionFile);
-				const reason = result.stderr?.trim() || result.stdout?.trim() || "unknown osascript error";
-				ctx.ui.notify(`Failed to open the BTW split: ${reason}`, "error");
+			if (!ctx.model) {
+				ctx.ui.notify("No model selected.", "error");
 				return;
 			}
 
-			if (!launch) {
-				await cleanupTempSession(sessionFile);
-				ctx.ui.notify(`Failed to parse Ghostty split result: ${result.stdout?.trim() || "(empty output)"}`, "error");
+			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
+			if (!auth.ok || !auth.apiKey) {
+				ctx.ui.notify(auth.ok ? `No API key for ${ctx.model.provider}.` : auth.error, "error");
 				return;
 			}
 
-			const inputResult = await sendStartupCommand(pi, launch.terminalId, startupCommand);
-			if (inputResult.code !== 0) {
-				await cleanupTempSession(sessionFile);
-				const reason = inputResult.stderr?.trim() || inputResult.stdout?.trim() || "unknown osascript error";
-				ctx.ui.notify(`BTW split opened, but starting the BTW child session failed: ${reason}`, "error");
-				return;
-			}
-
-			ctx.ui.notify("Opened a BTW pane below with your question.", "info");
+			await ctx.ui.custom<void>(
+				(tui, theme, _keybindings, done) => {
+					const panel = new BtwBottomOverlay(tui, theme, prompt, done);
+					void streamBtwAnswer(panel, ctx, prompt, auth.apiKey, auth.headers).catch((error) => {
+						if (panel.isClosed()) {
+							return;
+						}
+						panel.fail(error instanceof Error ? error.message : String(error));
+					});
+					return panel;
+				},
+				{
+					overlay: true,
+					overlayOptions: {
+						anchor: "bottom-center",
+						width: "100%",
+						maxHeight: "40%",
+						margin: { left: 0, right: 0, bottom: 0 },
+					},
+				},
+			);
 		},
 	});
 }
