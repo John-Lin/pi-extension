@@ -85,7 +85,7 @@ async function streamBtwAnswer(
 
 export default function (pi: ExtensionAPI): void {
 	pi.registerCommand("btw", {
-		description: "Open a one-shot BTW assistant in a bottom overlay.",
+		description: "Ask a quick side question without interrupting the main conversation",
 		handler: async (args, ctx: ExtensionCommandContext) => {
 			if (!ctx.hasUI) {
 				ctx.ui.notify("/btw requires interactive mode.", "warning");

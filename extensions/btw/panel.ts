@@ -27,6 +27,7 @@ export class BtwBottomOverlay {
 	private errorMessage: string | undefined;
 	private loading = true;
 	private scrollOffset = 0;
+	private lastBodyLimit = 1;
 	private closed = false;
 
 	constructor(tui: TUI, theme: Theme, question: string, done: () => void) {
@@ -96,6 +97,18 @@ export class BtwBottomOverlay {
 		if (matchesKey(data, "down")) {
 			this.scrollOffset += 1;
 			this.tui.requestRender();
+			return;
+		}
+
+		if (matchesKey(data, "pageDown")) {
+			this.scrollOffset += this.lastBodyLimit;
+			this.tui.requestRender();
+			return;
+		}
+
+		if (matchesKey(data, "pageUp")) {
+			this.scrollOffset = Math.max(0, this.scrollOffset - this.lastBodyLimit);
+			this.tui.requestRender();
 		}
 	}
 
@@ -107,12 +120,14 @@ export class BtwBottomOverlay {
 		const title = this.theme.fg("accent", " BTW ");
 		const titlePadding = Math.max(0, innerWidth - visibleWidth(title));
 
-		const questionLines = wrapPanelText(this.theme.fg("muted", `Q: ${this.question}`), innerWidth);
+		const questionLines = wrapPanelText(this.theme.fg("muted", `/btw ${this.question}`), innerWidth);
 		const bodyLines = this.getBodyLines(innerWidth);
 		const maxPanelLines = Math.max(8, Math.floor(this.tui.terminal.rows * 0.4));
 		const bodyLimit = Math.max(3, maxPanelLines - questionLines.length - 5);
+		this.lastBodyLimit = bodyLimit;
 		const maxScrollOffset = Math.max(0, bodyLines.length - bodyLimit);
 		const scrollOffset = Math.min(this.scrollOffset, maxScrollOffset);
+		this.scrollOffset = scrollOffset;
 		const visibleBodyLines = bodyLines.slice(scrollOffset, scrollOffset + bodyLimit);
 		const canScrollUp = scrollOffset > 0;
 		const canScrollDown = scrollOffset < maxScrollOffset;

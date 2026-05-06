@@ -33,6 +33,7 @@ test("btw directory entrypoint registers the btw command", async () => {
 	module.default(pi);
 
 	assert.ok(pi.commands.has("btw"));
+	assert.equal(pi.commands.get("btw")?.description, "Ask a quick side question without interrupting the main conversation");
 });
 
 test("btw helper modules stay importable from the directory layout", async () => {

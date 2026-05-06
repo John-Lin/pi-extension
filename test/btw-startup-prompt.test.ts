@@ -142,6 +142,8 @@ test("btw opens a bottom overlay and answers from the current branch context", a
 		);
 		assert.equal((capturedContext as { tools?: unknown }).tools, undefined);
 		assert.match((capturedContext as { systemPrompt?: string }).systemPrompt ?? "", /one-shot side assistant/i);
+		assert.match(rendered, /\/btw Can you summarize this\?/);
+		assert.doesNotMatch(rendered, /Q:/);
 		assert.match(rendered, /Bottom overlay answer/);
 		assert.ok(renderRequests > 0);
 		assert.deepEqual(overlayOptions, {
