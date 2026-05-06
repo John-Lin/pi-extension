@@ -37,3 +37,22 @@ test("btw panel renders the invoked command and supports page scrolling", () => 
 	assert.match(paged, /Line 11\b/);
 	assert.doesNotMatch(paged, /Line 1\b/);
 });
+
+test("btw panel renders markdown instead of showing markdown syntax", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"show markdown",
+		() => {},
+	);
+	panel.finish("This is **bold** and `code`.");
+
+	const rendered = panel.render(80).join("\n");
+	assert.match(rendered, /bold/);
+	assert.match(rendered, /code/);
+	assert.doesNotMatch(rendered, /\*\*bold\*\*/);
+	assert.doesNotMatch(rendered, /`code`/);
+});

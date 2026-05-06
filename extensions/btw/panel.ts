@@ -1,5 +1,5 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { matchesKey, truncateToWidth, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+import { Markdown, matchesKey, truncateToWidth, type MarkdownTheme, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 
 function wrapPanelText(text: string, width: number): string[] {
 	const normalized = text.replace(/\r\n/g, "\n");
@@ -15,6 +15,25 @@ function wrapPanelText(text: string, width: number): string[] {
 	}
 
 	return lines.length > 0 ? lines : [""];
+}
+
+function createMarkdownTheme(theme: Theme): MarkdownTheme {
+	return {
+		heading: (text: string) => theme.fg("mdHeading", text),
+		link: (text: string) => theme.fg("mdLink", text),
+		linkUrl: (text: string) => theme.fg("mdLinkUrl", text),
+		code: (text: string) => theme.fg("mdCode", text),
+		codeBlock: (text: string) => theme.fg("mdCodeBlock", text),
+		codeBlockBorder: (text: string) => theme.fg("mdCodeBlockBorder", text),
+		quote: (text: string) => theme.fg("mdQuote", text),
+		quoteBorder: (text: string) => theme.fg("mdQuoteBorder", text),
+		hr: (text: string) => theme.fg("mdHr", text),
+		listBullet: (text: string) => theme.fg("mdListBullet", text),
+		bold: (text: string) => theme.bold(text),
+		italic: (text: string) => theme.italic(text),
+		strikethrough: (text: string) => theme.strikethrough(text),
+		underline: (text: string) => theme.underline(text),
+	};
 }
 
 export class BtwBottomOverlay {
@@ -164,6 +183,9 @@ export class BtwBottomOverlay {
 			return [this.theme.fg("dim", this.loading ? "Thinking…" : "No answer returned.")];
 		}
 
-		return wrapPanelText(this.answer, innerWidth);
+		const markdown = new Markdown(this.answer, 0, 0, createMarkdownTheme(this.theme), {
+			color: (text: string) => this.theme.fg("text", text),
+		});
+		return markdown.render(innerWidth);
 	}
 }
