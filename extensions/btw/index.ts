@@ -1,6 +1,6 @@
 import type { AssistantMessage, Message } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
 import { BtwBottomOverlay } from "./panel.ts";
 
 const BTW_SYSTEM_PROMPT = [
@@ -12,10 +12,14 @@ const BTW_SYSTEM_PROMPT = [
 	"If the answer cannot be determined from the available context, say so briefly.",
 ].join(" ");
 
-function buildBtwMessages(branchEntries: Array<{ type: string; message?: Message }>, question: string): Message[] {
-	const messages = branchEntries
-		.filter((entry): entry is { type: "message"; message: Message } => entry.type === "message" && !!entry.message)
-		.map((entry) => entry.message);
+type BtwStreamOptions = NonNullable<Parameters<typeof streamSimple>[2]>;
+
+function buildBtwMessages(ctx: ExtensionCommandContext, question: string): {
+	messages: Message[];
+	thinkingLevel: string;
+} {
+	const sessionContext = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId());
+	const messages = convertToLlm(sessionContext.messages);
 
 	messages.push({
 		role: "user",
@@ -23,7 +27,24 @@ function buildBtwMessages(branchEntries: Array<{ type: string; message?: Message
 		timestamp: Date.now(),
 	});
 
-	return messages;
+	return {
+		messages,
+		thinkingLevel: sessionContext.thinkingLevel,
+	};
+}
+
+function getBtwReasoning(thinkingLevel: string): BtwStreamOptions["reasoning"] | undefined {
+	switch (thinkingLevel) {
+		case "off":
+		case "minimal":
+		case "low":
+		case "medium":
+		case "high":
+		case "xhigh":
+			return thinkingLevel as BtwStreamOptions["reasoning"];
+		default:
+			return undefined;
+	}
 }
 
 function extractAssistantText(message: AssistantMessage): string {
@@ -37,19 +58,21 @@ async function streamBtwAnswer(
 	panel: BtwBottomOverlay,
 	ctx: ExtensionCommandContext,
 	question: string,
-	apiKey: string,
+	apiKey: string | undefined,
 	headers: Record<string, string> | undefined,
 ): Promise<void> {
+	const { messages, thinkingLevel } = buildBtwMessages(ctx, question);
 	const answerStream = streamSimple(
 		ctx.model!,
 		{
 			systemPrompt: BTW_SYSTEM_PROMPT,
-			messages: buildBtwMessages(ctx.sessionManager.getBranch() as Array<{ type: string; message?: Message }>, question),
+			messages,
 		},
 		{
 			apiKey,
 			headers,
 			signal: panel.signal,
+			reasoning: getBtwReasoning(thinkingLevel),
 		},
 	);
 
@@ -104,8 +127,8 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-			if (!auth.ok || !auth.apiKey) {
-				ctx.ui.notify(auth.ok ? `No API key for ${ctx.model.provider}.` : auth.error, "error");
+			if (!auth.ok) {
+				ctx.ui.notify(auth.error, "error");
 				return;
 			}
 
