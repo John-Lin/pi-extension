@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { initTheme } from "@mariozechner/pi-coding-agent";
+
 import { BtwBottomOverlay } from "../extensions/btw/panel.ts";
+
+initTheme(undefined, false);
 
 function createThemeStub() {
 	return {
@@ -55,4 +59,22 @@ test("btw panel renders markdown instead of showing markdown syntax", () => {
 	assert.match(rendered, /code/);
 	assert.doesNotMatch(rendered, /\*\*bold\*\*/);
 	assert.doesNotMatch(rendered, /`code`/);
+});
+
+test("btw panel syntax-highlights fenced code blocks", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"show highlighted code",
+		() => {},
+	);
+	panel.finish("```ts\nconst answer = 42;\n```");
+
+	const rendered = panel.render(80).join("\n");
+	assert.match(rendered, /const/);
+	assert.match(rendered, /42/);
+	assert.doesNotMatch(rendered, /const answer = 42;/);
 });

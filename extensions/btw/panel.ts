@@ -1,4 +1,4 @@
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import { highlightCode, type Theme } from "@mariozechner/pi-coding-agent";
 import { Markdown, matchesKey, truncateToWidth, type MarkdownTheme, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 
 function wrapPanelText(text: string, width: number): string[] {
@@ -33,6 +33,7 @@ function createMarkdownTheme(theme: Theme): MarkdownTheme {
 		italic: (text: string) => theme.italic(text),
 		strikethrough: (text: string) => theme.strikethrough(text),
 		underline: (text: string) => theme.underline(text),
+		highlightCode: (code: string, lang?: string) => highlightCode(code, lang),
 	};
 }
 
