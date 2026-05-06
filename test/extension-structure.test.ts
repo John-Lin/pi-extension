@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
 import test from "node:test";
 
 type RegisteredCommand = {
@@ -37,9 +38,15 @@ test("btw directory entrypoint registers the btw command", async () => {
 });
 
 test("btw helper modules stay importable from the directory layout", async () => {
-	const sessionModule = await import("../extensions/btw/session.ts");
+	const panelModule = await import("../extensions/btw/panel.ts");
 
-	assert.equal(sessionModule.BTW_MARKER_TYPE, "btw-marker");
+	assert.equal(typeof panelModule.BtwBottomOverlay, "function");
+});
+
+test("btw directory only keeps the overlay entrypoint and panel helper", async () => {
+	const files = (await readdir(new URL("../extensions/btw", import.meta.url))).filter((file) => file.endsWith(".ts")).sort();
+
+	assert.deepEqual(files, ["index.ts", "panel.ts"]);
 });
 
 test("split-fork directory entrypoint registers the split-fork command", async () => {

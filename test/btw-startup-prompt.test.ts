@@ -108,7 +108,6 @@ test("btw opens a bottom overlay and answers from the current branch context", a
 								timestamp: Date.now() - 1,
 							},
 						},
-						{ type: "custom", customType: "btw-marker" },
 					];
 				},
 			},
