@@ -42,7 +42,13 @@ export default function (pi: ExtensionAPI): void {
 		}
 
 		startupPromptSent = true;
-		pi.sendUserMessage(startupPrompt);
+		// Defer the startup prompt until after session_start returns so the
+		// interactive UI has time to subscribe to agent events before the BTW
+		// child turn begins. Otherwise the pane can miss agent_start and never
+		// render the built-in working indicator.
+		setTimeout(() => {
+			pi.sendUserMessage(startupPrompt);
+		}, 0);
 	});
 
 	pi.on("before_agent_start", async (event) => {

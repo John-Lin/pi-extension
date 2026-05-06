@@ -38,13 +38,19 @@ test("buildBtwStartupCommand passes prompt through env instead of CLI args", () 
 	assert.doesNotMatch(command, /\s--\s/);
 });
 
-test("btw child sends startup prompt from env on session start", async () => {
+test("btw child defers the startup prompt until after session_start returns", async (t) => {
 	const previousSession = process.env.PI_BTW_TEMP_SESSION;
 	const previousPrompt = process.env.PI_BTW_STARTUP_PROMPT_B64;
 	process.env.PI_BTW_TEMP_SESSION = "/tmp/btw-session.jsonl";
 	process.env.PI_BTW_STARTUP_PROMPT_B64 = Buffer.from("--model dangerous", "utf8").toString("base64");
 
 	try {
+		const scheduledCallbacks: Array<() => void> = [];
+		t.mock.method(globalThis, "setTimeout", ((callback: () => void) => {
+			scheduledCallbacks.push(callback);
+			return { __fakeTimer: true } as unknown as ReturnType<typeof setTimeout>;
+		}) as typeof setTimeout);
+
 		const pi = createChildExtensionStub();
 		childExtension(pi);
 
@@ -52,8 +58,12 @@ test("btw child sends startup prompt from env on session start", async () => {
 		assert.ok(sessionStart);
 		await sessionStart?.({}, { hasUI: false });
 
-		assert.deepEqual(pi.sentMessages, ["--model dangerous"]);
+		assert.deepEqual(pi.sentMessages, []);
 		assert.equal(process.env.PI_BTW_STARTUP_PROMPT_B64, undefined);
+		assert.equal(scheduledCallbacks.length, 1);
+
+		scheduledCallbacks[0]?.();
+		assert.deepEqual(pi.sentMessages, ["--model dangerous"]);
 	} finally {
 		if (previousSession === undefined) delete process.env.PI_BTW_TEMP_SESSION;
 		else process.env.PI_BTW_TEMP_SESSION = previousSession;
