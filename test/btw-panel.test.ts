@@ -18,6 +18,64 @@ function createThemeStub() {
 	};
 }
 
+test("btw panel sizes itself to short content instead of always filling the cap", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"short question",
+		() => {},
+	);
+	panel.finish("a one-line answer");
+
+	const lines = panel.render(60);
+	assert.match(lines.join("\n"), /a one-line answer/);
+	// Old behavior would render ~16 lines (40% of 40). With content-driven sizing,
+	// the body section collapses to a single line and the whole panel stays compact.
+	assert.ok(
+		lines.length <= 8,
+		`expected compact panel for short content, got ${lines.length} lines`,
+	);
+});
+
+test("btw panel grows with streamed content up to a terminal-sized cap before scrolling kicks in", () => {
+	const rows = 40;
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows, columns: 120 },
+		},
+		createThemeStub(),
+		"growing answer",
+		() => {},
+	);
+
+	panel.appendAnswer("first line\n");
+	const small = panel.render(60);
+	const smallHeight = small.length;
+
+	for (let index = 2; index <= 80; index++) {
+		panel.appendAnswer(`Line ${index}\n`);
+	}
+	const large = panel.render(60);
+
+	assert.ok(large.length > smallHeight, `expected panel to grow with content (small=${smallHeight}, large=${large.length})`);
+	// Cap should leave only a small outer chrome reserved for the chat/input behind
+	// it (roughly the claude/src style: rows - ~6). On a 40-row terminal that means
+	// the panel can use ~30+ lines for long answers.
+	assert.ok(
+		large.length >= rows - 10,
+		`expected panel to expand near terminal height for long content, got ${large.length} lines (rows=${rows})`,
+	);
+	assert.ok(
+		large.length <= rows - 4,
+		`expected panel capped below full terminal height, got ${large.length} lines (rows=${rows})`,
+	);
+	assert.match(large.join("\n"), /first line/);
+});
+
 test("btw panel renders the invoked command starting at the top and supports page scrolling", () => {
 	const panel = new BtwBottomOverlay(
 		{
@@ -95,19 +153,19 @@ test("btw panel keeps the user's scroll position when more content streams in", 
 		() => {},
 	);
 
-	for (let index = 1; index <= 20; index++) {
+	for (let index = 1; index <= 50; index++) {
 		panel.appendAnswer(`Line ${index}\n`);
 	}
 	panel.render(60);
 	panel.handleInput("\x1b[6~");
 	const afterScroll = panel.render(60).join("\n");
 
-	for (let index = 21; index <= 40; index++) {
+	for (let index = 51; index <= 80; index++) {
 		panel.appendAnswer(`Line ${index}\n`);
 	}
 	const rendered = panel.render(60).join("\n");
 
-	assert.doesNotMatch(rendered, /Line 40\b/);
+	assert.doesNotMatch(rendered, /Line 80\b/);
 	assert.doesNotMatch(afterScroll, /Line 1\b/);
 });
 
