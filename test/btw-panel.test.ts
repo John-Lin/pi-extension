@@ -18,6 +18,27 @@ function createThemeStub() {
 	};
 }
 
+test("btw panel shows an animated spinner indicator while waiting for the answer", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"loading question",
+		() => {},
+	);
+
+	try {
+		const rendered = panel.render(60).join("\n");
+		// Default pi-tui Loader uses Braille spinner frames; the first frame is "⠋".
+		assert.match(rendered, /[⠀-⣿]/, "expected a Braille spinner frame in the loading body");
+		assert.match(rendered, /Thinking/);
+	} finally {
+		panel.close();
+	}
+});
+
 test("btw panel sizes itself to short content instead of always filling the cap", () => {
 	const panel = new BtwBottomOverlay(
 		{

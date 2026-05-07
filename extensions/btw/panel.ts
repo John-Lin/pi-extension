@@ -1,5 +1,5 @@
 import { highlightCode, type Theme } from "@mariozechner/pi-coding-agent";
-import { Markdown, matchesKey, truncateToWidth, type MarkdownTheme, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+import { Loader, Markdown, matchesKey, truncateToWidth, type MarkdownTheme, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 
 function wrapPanelText(text: string, width: number): string[] {
 	const normalized = text.replace(/\r\n/g, "\n");
@@ -49,12 +49,19 @@ export class BtwBottomOverlay {
 	private scrollOffset = 0;
 	private lastBodyLimit = 1;
 	private closed = false;
+	private readonly loader: Loader;
 
 	constructor(tui: TUI, theme: Theme, question: string, done: () => void) {
 		this.tui = tui;
 		this.theme = theme;
 		this.question = question;
 		this.done = done;
+		this.loader = new Loader(
+			tui,
+			(text) => this.theme.fg("accent", text),
+			(text) => this.theme.fg("dim", text),
+			"Thinking…",
+		);
 	}
 
 	get signal(): AbortSignal {
@@ -69,6 +76,11 @@ export class BtwBottomOverlay {
 		if (this.closed || delta.length === 0) {
 			return;
 		}
+		if (this.answer.length === 0) {
+			// First streamed bytes have arrived; the partial answer itself signals
+			// progress, so retire the indicator.
+			this.loader.stop();
+		}
 		this.answer += delta;
 		this.tui.requestRender();
 	}
@@ -78,6 +90,7 @@ export class BtwBottomOverlay {
 			return;
 		}
 		this.loading = false;
+		this.loader.stop();
 		if (finalAnswer.length > 0) {
 			this.answer = finalAnswer;
 		}
@@ -89,6 +102,7 @@ export class BtwBottomOverlay {
 			return;
 		}
 		this.loading = false;
+		this.loader.stop();
 		this.errorMessage = message;
 		this.tui.requestRender();
 	}
@@ -98,6 +112,7 @@ export class BtwBottomOverlay {
 			return;
 		}
 		this.closed = true;
+		this.loader.stop();
 		this.abortController.abort();
 		this.done();
 	}
@@ -185,7 +200,13 @@ export class BtwBottomOverlay {
 		}
 
 		if (this.answer.length === 0) {
-			return [this.theme.fg("dim", this.loading ? "Thinking…" : "No answer returned.")];
+			if (this.loading) {
+				// Loader prepends an empty separator line to its render output;
+				// drop that and any other blank rows so the panel body stays compact.
+				const loaderLines = this.loader.render(innerWidth).filter((line) => line.length > 0);
+				return loaderLines.length > 0 ? loaderLines : [this.theme.fg("dim", "Thinking…")];
+			}
+			return [this.theme.fg("dim", "No answer returned.")];
 		}
 
 		const markdown = new Markdown(this.answer, 0, 0, createMarkdownTheme(this.theme), {
