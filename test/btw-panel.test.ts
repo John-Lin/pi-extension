@@ -18,7 +18,7 @@ function createThemeStub() {
 	};
 }
 
-test("btw panel renders the invoked command and supports page scrolling", () => {
+test("btw panel renders the invoked command starting at the top and supports page scrolling", () => {
 	const panel = new BtwBottomOverlay(
 		{
 			requestRender() {},
@@ -34,11 +34,14 @@ test("btw panel renders the invoked command and supports page scrolling", () => 
 	assert.match(initial, /\/btw summarize the current session/);
 	assert.doesNotMatch(initial, /Q:/);
 	assert.match(initial, /Line 1\b/);
-	assert.doesNotMatch(initial, /Line 11\b/);
+	assert.doesNotMatch(initial, /Line 30\b/);
 
-	panel.handleInput("\x1b\[6~");
+	panel.handleInput("\x1b[6~");
+	panel.handleInput("\x1b[6~");
+	panel.handleInput("\x1b[6~");
+	panel.handleInput("\x1b[6~");
 	const paged = panel.render(60).join("\n");
-	assert.match(paged, /Line 11\b/);
+	assert.match(paged, /Line 30\b/);
 	assert.doesNotMatch(paged, /Line 1\b/);
 });
 
@@ -59,6 +62,53 @@ test("btw panel renders markdown instead of showing markdown syntax", () => {
 	assert.match(rendered, /code/);
 	assert.doesNotMatch(rendered, /\*\*bold\*\*/);
 	assert.doesNotMatch(rendered, /`code`/);
+});
+
+test("btw panel stays at the top while streaming and does not auto-scroll", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"stream long answer",
+		() => {},
+	);
+
+	for (let index = 1; index <= 30; index++) {
+		panel.appendAnswer(`Line ${index}\n`);
+	}
+
+	const rendered = panel.render(60).join("\n");
+	assert.match(rendered, /Line 1\b/);
+	assert.doesNotMatch(rendered, /Line 30\b/);
+});
+
+test("btw panel keeps the user's scroll position when more content streams in", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"stream long answer",
+		() => {},
+	);
+
+	for (let index = 1; index <= 20; index++) {
+		panel.appendAnswer(`Line ${index}\n`);
+	}
+	panel.render(60);
+	panel.handleInput("\x1b[6~");
+	const afterScroll = panel.render(60).join("\n");
+
+	for (let index = 21; index <= 40; index++) {
+		panel.appendAnswer(`Line ${index}\n`);
+	}
+	const rendered = panel.render(60).join("\n");
+
+	assert.doesNotMatch(rendered, /Line 40\b/);
+	assert.doesNotMatch(afterScroll, /Line 1\b/);
 });
 
 test("btw panel syntax-highlights fenced code blocks", () => {

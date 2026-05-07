@@ -12,18 +12,69 @@ const BTW_SYSTEM_PROMPT = [
 	"If the answer cannot be determined from the available context, say so briefly.",
 ].join(" ");
 
+const BTW_SIDE_REMINDER = [
+	"<system-reminder>This is a side question from the user. You must answer this question directly in a single response.",
+	"",
+	"IMPORTANT CONTEXT:",
+	"- You are a separate, lightweight agent spawned to answer this one question",
+	"- The main agent is NOT interrupted - it continues working independently in the background",
+	"- You share the conversation context but are a completely separate instance",
+	"- Do NOT reference being interrupted or what you were \"previously doing\" - that framing is incorrect",
+	"",
+	"CRITICAL CONSTRAINTS:",
+	"- You have NO tools available - you cannot read files, run commands, search, or take any actions",
+	"- This is a one-off response - there will be no follow-up turns",
+	"- You can ONLY provide information based on what you already know from the conversation context",
+	"- NEVER say things like \"Let me try...\", \"I'll now...\", \"Let me check...\", or promise to take any action",
+	"- If you don't know the answer, say so - do not offer to look it up or investigate",
+	"",
+	"Simply answer the question with the information you have.</system-reminder>",
+].join("\n");
+
+function resolveBtwSystemPrompt(ctx: ExtensionCommandContext): string {
+	const getter = (ctx as { getSystemPrompt?: () => string }).getSystemPrompt;
+	if (typeof getter === "function") {
+		try {
+			const main = getter();
+			if (typeof main === "string" && main.trim().length > 0) {
+				return main;
+			}
+		} catch {
+			// fall through to BTW prompt
+		}
+	}
+	return BTW_SYSTEM_PROMPT;
+}
+
 type BtwStreamOptions = NonNullable<Parameters<typeof streamSimple>[2]>;
+
+function stripIncompleteAssistantTrailing(messages: Message[]): Message[] {
+	const last = messages.at(-1);
+	if (last?.role !== "assistant") {
+		return messages;
+	}
+	// Drop a trailing assistant turn that is not a clean completion:
+	// - "aborted"/"error": the stream was interrupted before completing
+	// - "toolUse": ended expecting tool results that never arrived
+	// - "length": truncated by output limit
+	// Sending /btw on top of any of these would leave the conversation in
+	// an inconsistent state from the model's perspective.
+	if (last.stopReason !== "stop") {
+		return messages.slice(0, -1);
+	}
+	return messages;
+}
 
 function buildBtwMessages(ctx: ExtensionCommandContext, question: string): {
 	messages: Message[];
 	thinkingLevel: string;
 } {
 	const sessionContext = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId());
-	const messages = convertToLlm(sessionContext.messages);
+	const messages = stripIncompleteAssistantTrailing(convertToLlm(sessionContext.messages));
 
 	messages.push({
 		role: "user",
-		content: [{ type: "text", text: question }],
+		content: [{ type: "text", text: `${BTW_SIDE_REMINDER}\n\n${question}` }],
 		timestamp: Date.now(),
 	});
 
@@ -54,6 +105,13 @@ function extractAssistantText(message: AssistantMessage): string {
 		.join("");
 }
 
+function findFirstToolCallName(message: AssistantMessage): string | undefined {
+	const call = message.content.find(
+		(part): part is Extract<AssistantMessage["content"][number], { type: "toolCall" }> => part.type === "toolCall",
+	);
+	return call?.name;
+}
+
 async function streamBtwAnswer(
 	panel: BtwBottomOverlay,
 	ctx: ExtensionCommandContext,
@@ -65,7 +123,7 @@ async function streamBtwAnswer(
 	const answerStream = streamSimple(
 		ctx.model!,
 		{
-			systemPrompt: BTW_SYSTEM_PROMPT,
+			systemPrompt: resolveBtwSystemPrompt(ctx),
 			messages,
 		},
 		{
@@ -103,7 +161,18 @@ async function streamBtwAnswer(
 		return;
 	}
 
-	panel.finish(extractAssistantText(finalMessage));
+	const text = extractAssistantText(finalMessage);
+	if (text.length === 0) {
+		const toolName = findFirstToolCallName(finalMessage);
+		if (toolName) {
+			panel.finish(
+				`(The model tried to call \`${toolName}\` instead of answering directly. Try rephrasing or ask in the main conversation.)`,
+			);
+			return;
+		}
+	}
+
+	panel.finish(text);
 }
 
 export default function (pi: ExtensionAPI): void {

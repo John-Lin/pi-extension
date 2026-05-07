@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fauxAssistantMessage, registerFauxProvider } from "@mariozechner/pi-ai";
+import { fauxAssistantMessage, fauxToolCall, registerFauxProvider } from "@mariozechner/pi-ai";
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 
 import btwExtension from "../extensions/btw/index.ts";
@@ -60,6 +60,31 @@ function createAssistantTextMessage(text: string, faux: ReturnType<typeof regist
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
 		stopReason: "stop" as const,
+		timestamp,
+	};
+}
+
+function createAssistantMessageWithStop(
+	stopReason: "stop" | "length" | "toolUse" | "error" | "aborted",
+	content: Array<{ type: string; [k: string]: unknown }>,
+	faux: ReturnType<typeof registerFauxProvider>,
+	timestamp = Date.now(),
+) {
+	return {
+		role: "assistant" as const,
+		content,
+		api: faux.api,
+		provider: faux.getModel().provider,
+		model: faux.getModel().id,
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason,
 		timestamp,
 	};
 }
@@ -170,11 +195,14 @@ test("btw opens a bottom overlay and answers from the current session context", 
 			"assistant",
 			"user",
 		]);
-		assert.equal(
-			((capturedContext as { messages: Array<{ role: string; content: Array<{ type: string; text: string }> }> }).messages.at(-1)
-				?.content.at(0)?.text),
-			"Can you summarize this?",
-		);
+		const lastUserText = (capturedContext as { messages: Array<{ role: string; content: Array<{ type: string; text: string }> }> }).messages.at(-1)
+			?.content.at(0)?.text ?? "";
+		assert.match(lastUserText, /Can you summarize this\?/);
+		assert.match(lastUserText, /<system-reminder>/);
+		assert.match(lastUserText, /main agent is NOT interrupted/i);
+		assert.match(lastUserText, /NO tools available/i);
+		assert.match(lastUserText, /Let me try/);
+		assert.match(lastUserText, /<\/system-reminder>/);
 		assert.equal((capturedContext as { tools?: unknown }).tools, undefined);
 		assert.match((capturedContext as { systemPrompt?: string }).systemPrompt ?? "", /one-shot side assistant/i);
 		assert.match(uiHarness.rendered, /\/btw Can you summarize this\?/);
@@ -282,6 +310,189 @@ test("btw accepts request auth that only provides headers", async () => {
 		assert.equal(uiHarness.openedOverlay, true);
 		assert.deepEqual(uiHarness.notifications, []);
 		assert.match(uiHarness.rendered, /Header-only auth works/);
+	} finally {
+		faux.unregister();
+	}
+});
+
+test("btw uses the main agent system prompt for cache alignment when available", async () => {
+	const faux = registerFauxProvider({
+		models: [{ id: "btw-test-model" }],
+		tokensPerSecond: 0,
+		tokenSize: { min: 32, max: 32 },
+	});
+	let capturedContext: unknown;
+	faux.setResponses([
+		(context) => {
+			capturedContext = context;
+			return fauxAssistantMessage("ok");
+		},
+	]);
+
+	try {
+		const pi = createExtensionStub();
+		btwExtension(pi as never);
+		const command = pi.commands.get("btw");
+		assert.ok(command);
+
+		const sessionManager = SessionManager.inMemory(process.cwd());
+		sessionManager.appendMessage(createUserTextMessage("hi"));
+		const uiHarness = createUiHarness();
+		const mainSystemPrompt = "MAIN_AGENT_SYSTEM_PROMPT_BYTES_FOR_CACHE";
+
+		await command?.handler("Quick question", {
+			hasUI: true,
+			model: faux.getModel(),
+			modelRegistry: {
+				async getApiKeyAndHeaders() {
+					return { ok: true, apiKey: "fake-key" };
+				},
+			},
+			sessionManager,
+			ui: uiHarness.ui,
+			getSystemPrompt: () => mainSystemPrompt,
+		});
+
+		assert.equal((capturedContext as { systemPrompt?: string }).systemPrompt, mainSystemPrompt);
+		const lastUserText = (capturedContext as { messages: Array<{ content: Array<{ type: string; text: string }> }> }).messages.at(-1)
+			?.content.at(0)?.text ?? "";
+		assert.match(lastUserText, /<system-reminder>/);
+		assert.match(lastUserText, /Quick question/);
+	} finally {
+		faux.unregister();
+	}
+});
+
+async function runBtwAndCaptureMessages(
+	sessionSetup: (sessionManager: SessionManager, faux: ReturnType<typeof registerFauxProvider>) => void,
+	question = "Quick question",
+): Promise<Array<{ role: string }>> {
+	const faux = registerFauxProvider({
+		models: [{ id: "btw-test-model" }],
+		tokensPerSecond: 0,
+		tokenSize: { min: 32, max: 32 },
+	});
+	let capturedContext: { messages: Array<{ role: string }> } | undefined;
+	faux.setResponses([
+		(context) => {
+			capturedContext = context as { messages: Array<{ role: string }> };
+			return fauxAssistantMessage("ok");
+		},
+	]);
+
+	try {
+		const pi = createExtensionStub();
+		btwExtension(pi as never);
+		const command = pi.commands.get("btw");
+		assert.ok(command);
+
+		const sessionManager = SessionManager.inMemory(process.cwd());
+		sessionSetup(sessionManager, faux);
+		const uiHarness = createUiHarness();
+
+		await command?.handler(question, {
+			hasUI: true,
+			model: faux.getModel(),
+			modelRegistry: {
+				async getApiKeyAndHeaders() {
+					return { ok: true, apiKey: "fake-key" };
+				},
+			},
+			sessionManager,
+			ui: uiHarness.ui,
+		});
+
+		assert.ok(capturedContext, "expected provider to be called");
+		return capturedContext!.messages;
+	} finally {
+		faux.unregister();
+	}
+}
+
+test("btw drops a trailing aborted assistant message before sending", async () => {
+	const messages = await runBtwAndCaptureMessages((sessionManager, faux) => {
+		sessionManager.appendMessage(createUserTextMessage("user q"));
+		sessionManager.appendMessage(
+			createAssistantMessageWithStop("aborted", [{ type: "text", text: "partial..." }], faux),
+		);
+	});
+
+	assert.deepEqual(messages.map((m) => m.role), ["user", "user"]);
+});
+
+test("btw drops a trailing error assistant message before sending", async () => {
+	const messages = await runBtwAndCaptureMessages((sessionManager, faux) => {
+		sessionManager.appendMessage(createUserTextMessage("user q"));
+		sessionManager.appendMessage(
+			createAssistantMessageWithStop("error", [{ type: "text", text: "boom" }], faux),
+		);
+	});
+
+	assert.deepEqual(messages.map((m) => m.role), ["user", "user"]);
+});
+
+test("btw drops a trailing toolUse assistant message with no following toolResult", async () => {
+	const messages = await runBtwAndCaptureMessages((sessionManager, faux) => {
+		sessionManager.appendMessage(createUserTextMessage("user q"));
+		sessionManager.appendMessage(
+			createAssistantMessageWithStop(
+				"toolUse",
+				[{ type: "toolCall", id: "t1", name: "read", arguments: {} }],
+				faux,
+			),
+		);
+	});
+
+	assert.deepEqual(messages.map((m) => m.role), ["user", "user"]);
+});
+
+test("btw preserves a clean trailing assistant message", async () => {
+	const messages = await runBtwAndCaptureMessages((sessionManager, faux) => {
+		sessionManager.appendMessage(createUserTextMessage("user q"));
+		sessionManager.appendMessage(createAssistantTextMessage("clean answer", faux));
+	});
+
+	assert.deepEqual(messages.map((m) => m.role), ["user", "assistant", "user"]);
+});
+
+test("btw surfaces a friendly fallback when the model emits only a tool call", async () => {
+	const faux = registerFauxProvider({
+		models: [{ id: "btw-test-model" }],
+		tokensPerSecond: 0,
+		tokenSize: { min: 32, max: 32 },
+	});
+	faux.setResponses([
+		() =>
+			fauxAssistantMessage([fauxToolCall("read_file", { path: "x" })], {
+				stopReason: "toolUse",
+			}),
+	]);
+
+	try {
+		const pi = createExtensionStub();
+		btwExtension(pi as never);
+		const command = pi.commands.get("btw");
+		assert.ok(command);
+
+		const sessionManager = SessionManager.inMemory(process.cwd());
+		sessionManager.appendMessage(createUserTextMessage("hi"));
+		const uiHarness = createUiHarness();
+
+		await command?.handler("Tell me", {
+			hasUI: true,
+			model: faux.getModel(),
+			modelRegistry: {
+				async getApiKeyAndHeaders() {
+					return { ok: true, apiKey: "fake-key" };
+				},
+			},
+			sessionManager,
+			ui: uiHarness.ui,
+		});
+
+		assert.match(uiHarness.rendered, /tried to call/i);
+		assert.match(uiHarness.rendered, /read_file/);
+		assert.doesNotMatch(uiHarness.rendered, /No answer returned/);
 	} finally {
 		faux.unregister();
 	}
