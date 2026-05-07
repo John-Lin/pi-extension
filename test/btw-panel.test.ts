@@ -18,6 +18,53 @@ function createThemeStub() {
 	};
 }
 
+test("btw panel pads content horizontally inside the borders", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"padding question",
+		() => {},
+	);
+	panel.finish("hello world");
+
+	const rows = panel.render(60);
+	const questionRow = rows.find((row) => row.includes("padding question"));
+	const bodyRow = rows.find((row) => row.includes("hello world"));
+	assert.ok(questionRow, "expected to find question row");
+	assert.ok(bodyRow, "expected to find body row");
+	// Border followed by at least one whitespace before the content (avoid border + content).
+	assert.match(questionRow, /│ {1,}\/btw padding question/);
+	assert.match(bodyRow, /│ {1,}hello world/);
+	// And right side: content followed by whitespace then border, not content + border.
+	assert.match(questionRow, /\S {1,}│$/);
+	assert.match(bodyRow, /\S {1,}│$/);
+});
+
+test("btw panel separates the body from the footer with a blank padded row", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"footer breathing",
+		() => {},
+	);
+	panel.finish("answer text");
+
+	const rows = panel.render(60);
+	const footerIndex = rows.findIndex((row) => row.includes("Esc close"));
+	assert.ok(footerIndex > 0, "expected to find footer row");
+	const above = rows[footerIndex - 1];
+	// The row right before the footer should be a blank padded row inside the borders,
+	// not the answer content directly attached to the footer.
+	assert.doesNotMatch(above, /answer text/);
+	assert.match(above, /^│ +│$/);
+});
+
 test("btw panel shows an animated spinner indicator while waiting for the answer", () => {
 	const panel = new BtwBottomOverlay(
 		{

@@ -149,20 +149,26 @@ export class BtwBottomOverlay {
 
 	render(width: number): string[] {
 		const innerWidth = Math.max(20, width - 2);
+		// 1-space horizontal padding inside the borders, mirroring the
+		// paddingLeft used by the upstream /btw layout.
+		const horizontalPadding = 1;
+		const contentWidth = Math.max(1, innerWidth - horizontalPadding * 2);
 		const border = (text: string) => this.theme.fg("border", text);
-		const padLine = (text: string) => truncateToWidth(text, innerWidth, "...", true);
-		const row = (text: string) => border("│") + padLine(text) + border("│");
+		const padLine = (text: string) => truncateToWidth(text, contentWidth, "...", true);
+		const padding = " ".repeat(horizontalPadding);
+		const row = (text: string) => border("│") + padding + padLine(text) + padding + border("│");
+		const blankRow = border("│") + " ".repeat(innerWidth) + border("│");
 		const title = this.theme.fg("accent", " BTW ");
 		const titlePadding = Math.max(0, innerWidth - visibleWidth(title));
 
-		const questionLines = wrapPanelText(this.theme.fg("muted", `/btw ${this.question}`), innerWidth);
-		const bodyLines = this.getBodyLines(innerWidth);
+		const questionLines = wrapPanelText(this.theme.fg("muted", `/btw ${this.question}`), contentWidth);
+		const bodyLines = this.getBodyLines(contentWidth);
 		// Reserve ~6 outer rows for the chat/input behind the overlay, then deduct
-		// the panel chrome (top border, separator, status, footer, bottom border = 5)
-		// and the question lines. The body section then fills naturally up to that
-		// cap and shrinks for short content (slice() returns at most bodyLines.length).
+		// the panel chrome (top border, separator, status, blank-before-footer,
+		// footer, bottom border = 6) and the question lines. The body section then
+		// fills naturally up to that cap and shrinks for short content.
 		const maxPanelLines = Math.max(8, this.tui.terminal.rows - 6);
-		const bodyLimit = Math.max(3, maxPanelLines - questionLines.length - 5);
+		const bodyLimit = Math.max(3, maxPanelLines - questionLines.length - 6);
 		this.lastBodyLimit = bodyLimit;
 		const maxScrollOffset = Math.max(0, bodyLines.length - bodyLimit);
 		const scrollOffset = Math.min(this.scrollOffset, maxScrollOffset);
@@ -172,10 +178,10 @@ export class BtwBottomOverlay {
 		const canScrollDown = scrollOffset < maxScrollOffset;
 		const scrollInfo = canScrollUp || canScrollDown ? ` ↑${scrollOffset} ↓${maxScrollOffset - scrollOffset}` : "";
 		const statusText = this.errorMessage
-			? this.theme.fg("error", " BTW request failed")
+			? this.theme.fg("error", "BTW request failed")
 			: this.loading
-				? this.theme.fg("accent", " BTW is answering…")
-				: this.theme.fg("success", " BTW answer complete");
+				? this.theme.fg("accent", "BTW is answering…")
+				: this.theme.fg("success", "BTW answer complete");
 		const footerText = canScrollUp || canScrollDown ? "↑↓ scroll • Esc close" : "Esc close";
 
 		const lines = [border("╭") + title + border(`${"─".repeat(titlePadding)}╮`)];
@@ -187,6 +193,7 @@ export class BtwBottomOverlay {
 		for (const line of visibleBodyLines) {
 			lines.push(row(line));
 		}
+		lines.push(blankRow);
 		lines.push(row(this.theme.fg("dim", footerText)));
 		lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
 		return lines;
