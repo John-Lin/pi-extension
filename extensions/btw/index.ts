@@ -222,7 +222,11 @@ export default function (pi: ExtensionAPI): void {
 						// the overlay slices lines off the bottom and the footer +
 						// closing border get clipped.
 						maxHeight: "100%",
-						margin: { left: 0, right: 0, bottom: 0 },
+						// Leave a 2-column gutter on either side so the bordered overlay
+						// doesn't run into the terminal edges. width: "100%" gets clamped
+						// by pi-tui to (termWidth - left - right), so the panel keeps
+						// the rest of the row.
+						margin: { left: 2, right: 2, bottom: 0 },
 					},
 				},
 			);

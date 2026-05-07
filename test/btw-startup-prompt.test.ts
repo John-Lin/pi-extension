@@ -215,7 +215,7 @@ test("btw opens a bottom overlay and answers from the current session context", 
 				anchor: "bottom-center",
 				width: "100%",
 				maxHeight: "100%",
-				margin: { left: 0, right: 0, bottom: 0 },
+				margin: { left: 2, right: 2, bottom: 0 },
 			},
 		});
 	} finally {
