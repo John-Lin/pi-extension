@@ -163,11 +163,12 @@ export class BtwBottomOverlay {
 
 		const questionLines = wrapPanelText(this.theme.fg("muted", `/btw ${this.question}`), contentWidth);
 		const bodyLines = this.getBodyLines(contentWidth);
-		// Reserve ~6 outer rows for the chat/input behind the overlay, then deduct
-		// the panel chrome (top border, separator, status, blank-before-footer,
-		// footer, bottom border = 6) and the question lines. The body section then
-		// fills naturally up to that cap and shrinks for short content.
-		const maxPanelLines = Math.max(8, this.tui.terminal.rows - 6);
+		// Leave ~12 rows of chat visible above the overlay so the panel does not
+		// feel like it covers the entire screen. The panel chrome (top border,
+		// separator, status, blank-before-footer, footer, bottom border = 6) plus
+		// the question lines are subtracted from this cap; the body fills the rest
+		// and shrinks for short content.
+		const maxPanelLines = Math.max(8, this.tui.terminal.rows - 12);
 		const bodyLimit = Math.max(3, maxPanelLines - questionLines.length - 6);
 		this.lastBodyLimit = bodyLimit;
 		const maxScrollOffset = Math.max(0, bodyLines.length - bodyLimit);

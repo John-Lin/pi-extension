@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { initTheme } from "@mariozechner/pi-coding-agent";
+import { visibleWidth } from "@mariozechner/pi-tui";
 
 import { BtwBottomOverlay } from "../extensions/btw/panel.ts";
 
@@ -17,6 +18,40 @@ function createThemeStub() {
 		underline: (text: string) => text,
 	};
 }
+
+test("btw panel renders every row at the same visible width so borders align", () => {
+	const panel = new BtwBottomOverlay(
+		{
+			requestRender() {},
+			terminal: { rows: 40, columns: 120 },
+		},
+		createThemeStub(),
+		"alignment question with 中文 mixed in",
+		() => {},
+	);
+	panel.finish(
+		[
+			"短答",
+			"- 這是在解 session 尾端不完整訊息污染上下文的問題",
+			"- 但風險是: 如果某些合法 assistant message 沒有標準 stopReason、或格式跟預期不同",
+			"plain ascii line",
+			"```ts",
+			"const answer = 42;",
+			"```",
+		].join("\n"),
+	);
+
+	const rendered = panel.render(80);
+	const widths = rendered.map((row) => visibleWidth(row));
+	const expected = widths[0];
+	for (const [index, w] of widths.entries()) {
+		assert.equal(
+			w,
+			expected,
+			`row ${index} has visible width ${w}, expected ${expected}: ${JSON.stringify(rendered[index])}`,
+		);
+	}
+});
 
 test("btw panel pads content horizontally inside the borders", () => {
 	const panel = new BtwBottomOverlay(
@@ -130,16 +165,15 @@ test("btw panel grows with streamed content up to a terminal-sized cap before sc
 	const large = panel.render(60);
 
 	assert.ok(large.length > smallHeight, `expected panel to grow with content (small=${smallHeight}, large=${large.length})`);
-	// Cap should leave only a small outer chrome reserved for the chat/input behind
-	// it (roughly the claude/src style: rows - ~6). On a 40-row terminal that means
-	// the panel can use ~30+ lines for long answers.
+	// The cap leaves ~12 rows of chat visible above the overlay so the panel does
+	// not feel like it covers the whole screen.
 	assert.ok(
-		large.length >= rows - 10,
-		`expected panel to expand near terminal height for long content, got ${large.length} lines (rows=${rows})`,
+		large.length >= rows - 14,
+		`expected panel to use most of the lower part of the terminal, got ${large.length} lines (rows=${rows})`,
 	);
 	assert.ok(
-		large.length <= rows - 4,
-		`expected panel capped below full terminal height, got ${large.length} lines (rows=${rows})`,
+		large.length <= rows - 10,
+		`expected panel to leave a chunk of chat visible above, got ${large.length} lines (rows=${rows})`,
 	);
 	assert.match(large.join("\n"), /first line/);
 });
