@@ -214,7 +214,7 @@ test("btw opens a bottom overlay and answers from the current session context", 
 			overlayOptions: {
 				anchor: "bottom-center",
 				width: "100%",
-				maxHeight: "40%",
+				maxHeight: "100%",
 				margin: { left: 0, right: 0, bottom: 0 },
 			},
 		});

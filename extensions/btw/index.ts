@@ -217,7 +217,11 @@ export default function (pi: ExtensionAPI): void {
 					overlayOptions: {
 						anchor: "bottom-center",
 						width: "100%",
-						maxHeight: "40%",
+						// Let the panel's own cap (rows - 6) drive the actual height. If
+						// the overlay's maxHeight is smaller than what the panel renders,
+						// the overlay slices lines off the bottom and the footer +
+						// closing border get clipped.
+						maxHeight: "100%",
 						margin: { left: 0, right: 0, bottom: 0 },
 					},
 				},
