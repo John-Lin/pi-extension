@@ -32,16 +32,12 @@ const BTW_SIDE_REMINDER = [
 ].join("\n");
 
 function resolveBtwSystemPrompt(ctx: ExtensionCommandContext): string {
-	const getter = (ctx as { getSystemPrompt?: () => string }).getSystemPrompt;
-	if (typeof getter === "function") {
-		try {
-			const main = getter();
-			if (typeof main === "string" && main.trim().length > 0) {
-				return main;
-			}
-		} catch {
-			// fall through to BTW prompt
-		}
+	try {
+		const main = ctx.getSystemPrompt();
+		if (main.trim().length > 0) return main;
+	} catch {
+		// ExtensionCommandContext.getSystemPrompt is required by the SDK,
+		// but legacy test stubs may not provide it; fall through.
 	}
 	return BTW_SYSTEM_PROMPT;
 }
