@@ -10,10 +10,7 @@ extensions/
   status-line.ts
   btw/
     index.ts
-    child.ts
-    ghostty.ts
-    launch.ts
-    session.ts
+    panel.ts
   split-fork/
     index.ts
     count-osascript.ts
@@ -26,6 +23,8 @@ extensions/
 ```
 
 Pi auto-discovers top-level extension files and directory entrypoints like `extensions/btw/index.ts`.
+
+`/btw` now runs as a bottom overlay inside pi, so it no longer depends on Ghostty or AppleScript.
 
 ## Usage
 
