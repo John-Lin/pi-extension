@@ -1,6 +1,6 @@
-import type { AssistantMessage, Message } from "@mariozechner/pi-ai";
-import { streamSimple } from "@mariozechner/pi-ai";
-import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai";
+import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { BtwBottomOverlay } from "./panel.ts";
 
 const BTW_SYSTEM_PROMPT = [

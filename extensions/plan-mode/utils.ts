@@ -2,7 +2,7 @@
  * Plan Mode Utilities
  *
  * Adapted from:
- * https://github.com/badlogic/pi-mono
+ * https://github.com/earendil-works/pi-mono
  * packages/coding-agent/examples/extensions/plan-mode/utils.ts
  * License: MIT
  *

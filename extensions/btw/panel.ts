@@ -1,5 +1,5 @@
-import { highlightCode, type Theme } from "@mariozechner/pi-coding-agent";
-import { Loader, Markdown, matchesKey, truncateToWidth, type MarkdownTheme, type TUI, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+import { highlightCode, type Theme } from "@earendil-works/pi-coding-agent";
+import { Loader, Markdown, matchesKey, truncateToWidth, type MarkdownTheme, type TUI, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 function wrapPanelText(text: string, width: number): string[] {
 	const normalized = text.replace(/\r\n/g, "\n");

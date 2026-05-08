@@ -1,6 +1,6 @@
 # Upstream Source
 
-- Source repo: <https://github.com/badlogic/pi-mono>
+- Source repo: <https://github.com/earendil-works/pi-mono>
 - Upstream path: `packages/coding-agent/examples/extensions/notify.ts`
 - Upstream license: MIT
 - License copy: `../third_party/licenses/pi-mono-MIT.txt`

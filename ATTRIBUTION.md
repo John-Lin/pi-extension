@@ -6,9 +6,9 @@ This repository is licensed under MIT for original work by John Lin. Some files 
 
 - `extensions/btw/` — original extension developed by John Lin.
 
-## Adapted from `badlogic/pi-mono` (MIT)
+## Adapted from `earendil-works/pi-mono` (MIT)
 
-- Source repo: <https://github.com/badlogic/pi-mono>
+- Source repo: <https://github.com/earendil-works/pi-mono>
 - Upstream license: MIT
 - License copy: `third_party/licenses/pi-mono-MIT.txt`
 - Imported or adapted paths:

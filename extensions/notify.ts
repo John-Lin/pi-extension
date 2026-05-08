@@ -2,7 +2,7 @@
  * Pi Notify Extension
  *
  * Adapted from:
- * https://github.com/badlogic/pi-mono
+ * https://github.com/earendil-works/pi-mono
  * packages/coding-agent/examples/extensions/notify.ts
  * License: MIT
  *
@@ -11,7 +11,7 @@
  */
 
 import { execFile } from "node:child_process";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const NOTIFY_TITLE = "Pi";
 const NOTIFY_BODY = "Ready for input";
