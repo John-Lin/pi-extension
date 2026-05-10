@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { renderCompactFooterLines } from "../extensions/compact-footer.ts";
 
 const theme = {
@@ -207,6 +208,7 @@ test("compact footer truncates stats with ellipsis when they exceed the line wid
 
 	assert.ok(lines[1].includes("..."));
 	assert.equal(lines[1].includes("gpt-5.5"), false);
+	assert.equal(visibleWidth(lines[1]), 30);
 });
 
 test("compact footer truncates the right side when the model name does not fit", () => {
@@ -227,7 +229,8 @@ test("compact footer truncates the right side when the model name does not fit",
 
 	assert.ok(lines[1].startsWith("Ready"));
 	assert.equal(lines[1].includes(longModelId), false);
-	assert.ok(lines[1].includes("extremely-long-model-name"));
+	assert.ok(lines[1].includes(longModelId.slice(0, 20)));
+	assert.equal(visibleWidth(lines[1]), 50);
 });
 
 test("compact footer normalizes whitespace and control chars in status text", () => {
