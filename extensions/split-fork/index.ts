@@ -134,12 +134,7 @@ async function sendStartupInput(pi: ExtensionAPI, terminalId: string, startupInp
 	return pi.exec("osascript", ["-e", buildGhosttyInputScript(), "--", terminalId, startupInput]);
 }
 
-export default function (pi: ExtensionAPI): void {
-	// Ghostty-specific: uses AppleScript to drive Ghostty split panes.
-	// Skip registration entirely on non-macOS or non-Ghostty environments.
-	if (process.platform !== "darwin") return;
-	if (process.env.TERM_PROGRAM !== "ghostty") return;
-
+export function registerSplitFork(pi: ExtensionAPI): void {
 	let startupPromptSent = false;
 
 	pi.on("session_start", async () => {
@@ -226,4 +221,13 @@ export default function (pi: ExtensionAPI): void {
 			}
 		},
 	});
+}
+
+export default function (pi: ExtensionAPI): void {
+	// Ghostty-specific: uses AppleScript to drive Ghostty split panes.
+	// Skip registration entirely on non-macOS or non-Ghostty environments.
+	if (process.platform !== "darwin") return;
+	if (process.env.TERM_PROGRAM !== "ghostty") return;
+
+	registerSplitFork(pi);
 }

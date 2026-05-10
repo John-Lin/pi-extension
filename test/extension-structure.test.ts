@@ -53,7 +53,7 @@ test("split-fork directory entrypoint registers the split-fork command", async (
 	const module = await import("../extensions/split-fork/index.ts");
 	const pi = createExtensionStub();
 
-	module.default(pi);
+	module.registerSplitFork(pi);
 
 	assert.ok(pi.commands.has("split-fork"));
 });

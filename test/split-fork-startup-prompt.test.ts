@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import splitForkExtension, { buildPiStartupInput } from "../extensions/split-fork/index.ts";
+import { registerSplitFork, buildPiStartupInput } from "../extensions/split-fork/index.ts";
 
 type SplitForkExtensionStub = {
 	handlers: Map<string, (...args: unknown[]) => unknown>;
@@ -41,7 +41,7 @@ test("split-fork sends startup prompt from env on session start", async () => {
 
 	try {
 		const pi = createSplitForkExtensionStub();
-		splitForkExtension(pi);
+		registerSplitFork(pi);
 
 		const sessionStart = pi.handlers.get("session_start");
 		assert.ok(sessionStart);
