@@ -54,7 +54,6 @@ type RenderCompactFooterOptions = {
 	model: ModelLike | undefined;
 	providerCount: number;
 	thinkingLevel: string;
-	autoCompactEnabled: boolean;
 	usingSubscription?: boolean;
 };
 
@@ -140,8 +139,7 @@ export function renderCompactFooterLines(options: RenderCompactFooterOptions): s
 	const contextWindow = options.contextUsage?.contextWindow ?? options.model?.contextWindow ?? 0;
 	const contextPercentValue = options.contextUsage?.percent ?? 0;
 	const contextPercent = options.contextUsage?.percent !== null && options.contextUsage?.percent !== undefined ? contextPercentValue.toFixed(1) : "?";
-	const autoIndicator = options.autoCompactEnabled ? " (auto)" : "";
-	const contextDisplay = `${contextPercent}%/${formatTokens(Number(contextWindow))}${autoIndicator}`;
+	const contextDisplay = `${contextPercent}%/${formatTokens(Number(contextWindow))}`;
 	const contextPart =
 		contextPercentValue > 90
 			? options.theme.fg("error", contextDisplay)
@@ -207,7 +205,6 @@ export default function (pi: ExtensionAPI) {
 						model: ctx.model,
 						providerCount: footerData.getAvailableProviderCount(),
 						thinkingLevel: pi.getThinkingLevel(),
-						autoCompactEnabled: true,
 						usingSubscription: ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false,
 					});
 				},

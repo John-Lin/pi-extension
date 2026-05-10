@@ -36,14 +36,13 @@ test("compact footer prefixes extension status to the stats line", () => {
 		model: { provider: "openai", id: "gpt-5.5", reasoning: true },
 		providerCount: 2,
 		thinkingLevel: "medium",
-		autoCompactEnabled: true,
 	});
 
 	assert.equal(lines.length, 2);
 	assert.equal(lines[0], "~/workspace/pi-extension");
 	assert.match(
 		lines[1],
-		/^✓ Turn 12 complete ↑150k ↓8\.6k R596k \$1\.308 25\.3%\/272k \(auto\) +\(openai\) gpt-5\.5 • medium$/,
+		/^✓ Turn 12 complete ↑150k ↓8\.6k R596k \$1\.308 25\.3%\/272k +\(openai\) gpt-5\.5 • medium$/,
 	);
 });
 
@@ -60,7 +59,6 @@ test("compact footer does not render extension statuses as a separate line", () 
 		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
 		providerCount: 2,
 		thinkingLevel: "off",
-		autoCompactEnabled: true,
 	});
 
 	assert.equal(lines.length, 2);
