@@ -7,7 +7,7 @@ Personal extensions for pi.
 ```text
 extensions/
   notify.ts
-  status-line.ts
+  compact-footer.ts
   btw/
     index.ts
     panel.ts
@@ -34,7 +34,7 @@ Load a single extension without installing the package:
 
 ```bash
 pi -e ./extensions/notify.ts
-pi -e ./extensions/status-line.ts
+pi -e ./extensions/compact-footer.ts
 pi -e ./extensions/btw/index.ts
 pi -e ./extensions/plan-mode/index.ts
 ```
