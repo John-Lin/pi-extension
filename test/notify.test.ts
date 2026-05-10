@@ -116,12 +116,15 @@ test("handleAgentEnd uses Windows toast and skips sound on non-macOS", async () 
 	assert.deepEqual(pi.execCalls, []);
 });
 
-test("getCompletionSoundCommand leaves a Linux hook for future support", () => {
+test("getCompletionSoundCommand returns platform completion sound commands", () => {
 	assert.deepEqual(getCompletionSoundCommand("darwin"), {
 		command: "afplay",
 		args: ["/System/Library/Sounds/Blow.aiff"],
 	});
-	assert.equal(getCompletionSoundCommand("linux"), null);
+	assert.deepEqual(getCompletionSoundCommand("linux"), {
+		command: "paplay",
+		args: ["/usr/share/sounds/freedesktop/stereo/complete.oga"],
+	});
 });
 
 test("default extension registers agent_end handler", async () => {

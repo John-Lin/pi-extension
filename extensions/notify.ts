@@ -15,7 +15,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const NOTIFY_TITLE = "Pi";
 const NOTIFY_BODY = "Ready for input";
-const SOUND_FILE = "/System/Library/Sounds/Blow.aiff";
+const MACOS_SOUND_FILE = "/System/Library/Sounds/Blow.aiff";
+const LINUX_SOUND_FILE = "/usr/share/sounds/freedesktop/stereo/complete.oga";
 
 type PiExecutor = Pick<ExtensionAPI, "exec">;
 type PlatformName = NodeJS.Platform | (string & {});
@@ -85,13 +86,16 @@ export function getCompletionSoundCommand(platform: PlatformName): CompletionSou
 	if (platform === "darwin") {
 		return {
 			command: "afplay",
-			args: [SOUND_FILE],
+			args: [MACOS_SOUND_FILE],
 		};
 	}
 
 	if (platform === "linux") {
-		// TODO: Add a Linux sound backend once we decide which desktop/audio interface to support.
-		return null;
+		// Requires paplay and the freedesktop sound theme complete.oga file.
+		return {
+			command: "paplay",
+			args: [LINUX_SOUND_FILE],
+		};
 	}
 
 	return null;
