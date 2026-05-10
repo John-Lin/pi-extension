@@ -123,3 +123,46 @@ test("compact footer ignores assistant entries with invalid usage shape", () => 
 	assert.equal(lines[1].includes("not-a-number"), false);
 	assert.equal(lines[1].includes("NaN"), false);
 });
+
+test("compact footer keeps token stats dim after colored status text resets ansi", () => {
+	const dim = "\x1b[2m";
+	const green = "\x1b[32m";
+	const reset = "\x1b[0m";
+	const ansiTheme = {
+		fg(color: string, text: string) {
+			if (color === "dim") return `${dim}${text}${reset}`;
+			if (color === "success") return `${green}${text}${reset}`;
+			return text;
+		},
+	};
+
+	const lines = renderCompactFooterLines({
+		width: 120,
+		theme: ansiTheme,
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map([["status-demo", `${ansiTheme.fg("success", "✓")}${ansiTheme.fg("dim", " Turn 12 complete")}`]]),
+		entries: [
+			{
+				type: "message",
+				message: {
+					role: "assistant",
+					usage: {
+						input: 150_000,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						cost: { total: 0 },
+					},
+				},
+			},
+		],
+		contextUsage: { tokens: 1_000, contextWindow: 272_000, percent: 0.4 },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 2,
+		thinkingLevel: "off",
+	});
+
+	assert.equal(lines[1].includes(`${reset} ${dim}↑150k`), true);
+});

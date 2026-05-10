@@ -143,14 +143,14 @@ function buildStatusParts(statuses: ReadonlyMap<string, string>): readonly strin
 		.filter(Boolean);
 }
 
-function buildTokenParts(totals: Usage, usingSubscription: boolean | undefined): readonly string[] {
+function buildTokenParts(theme: FooterTheme, totals: Usage, usingSubscription: boolean | undefined): readonly string[] {
 	const parts: string[] = [];
-	if (totals.input) parts.push(`↑${formatTokens(totals.input)}`);
-	if (totals.output) parts.push(`↓${formatTokens(totals.output)}`);
-	if (totals.cacheRead) parts.push(`R${formatTokens(totals.cacheRead)}`);
-	if (totals.cacheWrite) parts.push(`W${formatTokens(totals.cacheWrite)}`);
+	if (totals.input) parts.push(theme.fg("dim", `↑${formatTokens(totals.input)}`));
+	if (totals.output) parts.push(theme.fg("dim", `↓${formatTokens(totals.output)}`));
+	if (totals.cacheRead) parts.push(theme.fg("dim", `R${formatTokens(totals.cacheRead)}`));
+	if (totals.cacheWrite) parts.push(theme.fg("dim", `W${formatTokens(totals.cacheWrite)}`));
 	if (totals.cost.total || usingSubscription) {
-		parts.push(`$${totals.cost.total.toFixed(3)}${usingSubscription ? " (sub)" : ""}`);
+		parts.push(theme.fg("dim", `$${totals.cost.total.toFixed(3)}${usingSubscription ? " (sub)" : ""}`));
 	}
 	return parts;
 }
@@ -165,7 +165,7 @@ function buildContextPart(theme: FooterTheme, contextUsage: ContextUsageLike | u
 
 	if (contextPercentValue != null && contextPercentValue > 90) return theme.fg("error", contextDisplay);
 	if (contextPercentValue != null && contextPercentValue > 70) return theme.fg("warning", contextDisplay);
-	return contextDisplay;
+	return theme.fg("dim", contextDisplay);
 }
 
 function buildRightSide(options: BuildRightSideOptions): string {
@@ -184,14 +184,14 @@ function buildRightSide(options: BuildRightSideOptions): string {
 export function renderCompactFooterLines(options: RenderCompactFooterOptions): string[] {
 	const totals = getTotals(options.entries);
 	const statusParts = buildStatusParts(options.statuses);
-	const tokenParts = buildTokenParts(totals, options.usingSubscription);
+	const tokenParts = buildTokenParts(options.theme, totals, options.usingSubscription);
 	const contextPart = buildContextPart(options.theme, options.contextUsage, options.model);
 	const statsParts = [...statusParts, ...tokenParts, contextPart];
 
 	let statsLeft = statsParts.join(" ");
 	let statsLeftWidth = visibleWidth(statsLeft);
 	if (statsLeftWidth > options.width) {
-		statsLeft = truncateToWidth(statsLeft, options.width, "...");
+		statsLeft = truncateToWidth(statsLeft, options.width, options.theme.fg("dim", "..."));
 		statsLeftWidth = visibleWidth(statsLeft);
 	}
 
@@ -220,12 +220,11 @@ export function renderCompactFooterLines(options: RenderCompactFooterOptions): s
 	}
 
 	const pwd = formatWorkingDirectory(options.cwd, options.home, options.branch, options.sessionName);
-	const dimStatsLeft = options.theme.fg("dim", statsLeft);
 	const dimRemainder = options.theme.fg("dim", statsLine.slice(statsLeft.length));
 
 	return [
 		truncateToWidth(options.theme.fg("dim", pwd), options.width, options.theme.fg("dim", "...")),
-		dimStatsLeft + dimRemainder,
+		statsLeft + dimRemainder,
 	];
 }
 
