@@ -124,6 +124,147 @@ test("compact footer ignores assistant entries with invalid usage shape", () => 
 	assert.equal(lines[1].includes("NaN"), false);
 });
 
+test("compact footer colors context display as warning when usage exceeds 70%", () => {
+	const calls: { color: string; text: string }[] = [];
+	const lines = renderCompactFooterLines({
+		width: 100,
+		theme: {
+			fg(color: string, text: string) {
+				calls.push({ color, text });
+				return text;
+			},
+		},
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map(),
+		entries: [],
+		contextUsage: { tokens: 204_000, contextWindow: 272_000, percent: 75.0 },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 1,
+		thinkingLevel: "off",
+	});
+
+	assert.ok(calls.some((c) => c.color === "warning" && c.text === "75.0%/272k"));
+	assert.equal(calls.some((c) => c.color === "error"), false);
+	assert.ok(lines[1].includes("75.0%/272k"));
+});
+
+test("compact footer colors context display as error when usage exceeds 90%", () => {
+	const calls: { color: string; text: string }[] = [];
+	const lines = renderCompactFooterLines({
+		width: 100,
+		theme: {
+			fg(color: string, text: string) {
+				calls.push({ color, text });
+				return text;
+			},
+		},
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map(),
+		entries: [],
+		contextUsage: { tokens: 258_000, contextWindow: 272_000, percent: 95.0 },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 1,
+		thinkingLevel: "off",
+	});
+
+	assert.ok(calls.some((c) => c.color === "error" && c.text === "95.0%/272k"));
+	assert.equal(calls.some((c) => c.color === "warning"), false);
+	assert.ok(lines[1].includes("95.0%/272k"));
+});
+
+test("compact footer truncates stats with ellipsis when they exceed the line width", () => {
+	const lines = renderCompactFooterLines({
+		width: 30,
+		theme,
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map([["status-demo", "Ready"]]),
+		entries: [
+			{
+				type: "message",
+				message: {
+					role: "assistant",
+					usage: {
+						input: 150_000,
+						output: 8_600,
+						cacheRead: 596_000,
+						cacheWrite: 0,
+						cost: { total: 1.308 },
+					},
+				},
+			},
+		],
+		contextUsage: { tokens: 68_816, contextWindow: 272_000, percent: 25.3 },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 1,
+		thinkingLevel: "off",
+	});
+
+	assert.ok(lines[1].includes("..."));
+	assert.equal(lines[1].includes("gpt-5.5"), false);
+});
+
+test("compact footer truncates the right side when the model name does not fit", () => {
+	const longModelId = "extremely-long-model-name-that-overflows-the-line";
+	const lines = renderCompactFooterLines({
+		width: 50,
+		theme,
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map([["status-demo", "Ready"]]),
+		entries: [],
+		contextUsage: { tokens: null, contextWindow: 272_000, percent: null },
+		model: { provider: "openai", id: longModelId, reasoning: false },
+		providerCount: 1,
+		thinkingLevel: "off",
+	});
+
+	assert.ok(lines[1].startsWith("Ready"));
+	assert.equal(lines[1].includes(longModelId), false);
+	assert.ok(lines[1].includes("extremely-long-model-name"));
+});
+
+test("compact footer normalizes whitespace and control chars in status text", () => {
+	const lines = renderCompactFooterLines({
+		width: 120,
+		theme,
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map([["status-demo", "  ✓\tTurn 4   complete\n  "]]),
+		entries: [],
+		contextUsage: { tokens: 1_000, contextWindow: 272_000, percent: 0.4 },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 1,
+		thinkingLevel: "off",
+	});
+
+	assert.ok(lines[1].includes("✓ Turn 4 complete"));
+	assert.equal(lines[1].includes("\n"), false);
+	assert.equal(lines[1].includes("\t"), false);
+	assert.equal(lines[1].includes("Turn 4  complete"), false);
+});
+
+test("compact footer registers a session_start handler", async () => {
+	type EventHandler = (...args: unknown[]) => unknown;
+	const handlers = new Map<string, EventHandler>();
+	const pi = {
+		on(event: string, handler: EventHandler) {
+			handlers.set(event, handler);
+		},
+	};
+	const module = await import("../extensions/compact-footer.ts");
+	module.default(pi);
+
+	assert.ok(handlers.has("session_start"));
+});
+
 test("compact footer keeps token stats dim after colored status text resets ansi", () => {
 	const dim = "\x1b[2m";
 	const green = "\x1b[32m";
