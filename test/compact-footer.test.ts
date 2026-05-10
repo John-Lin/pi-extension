@@ -64,3 +64,62 @@ test("compact footer does not render extension statuses as a separate line", () 
 	assert.equal(lines.length, 2);
 	assert.equal(lines[1].includes("Ready"), true);
 });
+
+test("compact footer renders unknown context percent without percent coloring", () => {
+	const colors: string[] = [];
+	const lines = renderCompactFooterLines({
+		width: 100,
+		theme: {
+			fg(color: string, text: string) {
+				colors.push(color);
+				return text;
+			},
+		},
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map(),
+		entries: [],
+		contextUsage: { tokens: null, contextWindow: 272_000, percent: null },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 2,
+		thinkingLevel: "off",
+	});
+
+	assert.equal(lines[1].includes("?/272k"), true);
+	assert.equal(colors.includes("warning"), false);
+	assert.equal(colors.includes("error"), false);
+});
+
+test("compact footer ignores assistant entries with invalid usage shape", () => {
+	const lines = renderCompactFooterLines({
+		width: 100,
+		theme,
+		cwd: "/tmp/project",
+		home: "/home/johnlin",
+		branch: null,
+		statuses: new Map(),
+		entries: [
+			{
+				type: "message",
+				message: {
+					role: "assistant",
+					usage: {
+						input: "not-a-number",
+						output: 10,
+						cacheRead: 20,
+						cacheWrite: 30,
+						cost: { total: "not-a-number" },
+					},
+				},
+			},
+		] as readonly unknown[],
+		contextUsage: { tokens: 1_000, contextWindow: 272_000, percent: 0.4 },
+		model: { provider: "openai", id: "gpt-5.5", reasoning: false },
+		providerCount: 2,
+		thinkingLevel: "off",
+	});
+
+	assert.equal(lines[1].includes("not-a-number"), false);
+	assert.equal(lines[1].includes("NaN"), false);
+});

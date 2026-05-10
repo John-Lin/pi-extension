@@ -21,10 +21,10 @@ type Usage = {
 };
 
 type SessionEntryLike = {
-	type: string;
-	message?: {
-		role?: string;
-		usage?: Usage;
+	type: "message";
+	message: {
+		role: "assistant";
+		usage: Usage;
 	};
 };
 
@@ -49,7 +49,7 @@ type RenderCompactFooterOptions = {
 	branch: string | null;
 	sessionName?: string;
 	statuses: ReadonlyMap<string, string>;
-	entries: readonly SessionEntryLike[];
+	entries: readonly unknown[];
 	contextUsage: ContextUsageLike | undefined;
 	model: ModelLike | undefined;
 	providerCount: number;
@@ -83,7 +83,31 @@ function formatWorkingDirectory(cwd: string, home: string | undefined, branch: s
 	return pwd;
 }
 
-function getTotals(entries: readonly SessionEntryLike[]): Usage {
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function isNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value);
+}
+
+function isUsage(value: unknown): value is Usage {
+	if (!isRecord(value) || !isRecord(value.cost)) return false;
+	return (
+		isNumber(value.input) &&
+		isNumber(value.output) &&
+		isNumber(value.cacheRead) &&
+		isNumber(value.cacheWrite) &&
+		isNumber(value.cost.total)
+	);
+}
+
+function isAssistantEntryWithUsage(entry: unknown): entry is SessionEntryLike {
+	if (!isRecord(entry) || entry.type !== "message" || !isRecord(entry.message)) return false;
+	return entry.message.role === "assistant" && isUsage(entry.message.usage);
+}
+
+function getTotals(entries: readonly unknown[]): Usage {
 	const totals: Usage = {
 		input: 0,
 		output: 0,
@@ -93,7 +117,7 @@ function getTotals(entries: readonly SessionEntryLike[]): Usage {
 	};
 
 	for (const entry of entries) {
-		if (entry.type !== "message" || entry.message?.role !== "assistant" || !entry.message.usage) continue;
+		if (!isAssistantEntryWithUsage(entry)) continue;
 		totals.input += entry.message.usage.input;
 		totals.output += entry.message.usage.output;
 		totals.cacheRead += entry.message.usage.cacheRead;
@@ -137,13 +161,15 @@ export function renderCompactFooterLines(options: RenderCompactFooterOptions): s
 	}
 
 	const contextWindow = options.contextUsage?.contextWindow ?? options.model?.contextWindow ?? 0;
-	const contextPercentValue = options.contextUsage?.percent ?? 0;
-	const contextPercent = options.contextUsage?.percent !== null && options.contextUsage?.percent !== undefined ? contextPercentValue.toFixed(1) : "?";
-	const contextDisplay = `${contextPercent}%/${formatTokens(Number(contextWindow))}`;
+	const contextPercentValue = options.contextUsage?.percent;
+	const contextDisplay =
+		contextPercentValue != null
+			? `${contextPercentValue.toFixed(1)}%/${formatTokens(Number(contextWindow))}`
+			: `?/${formatTokens(Number(contextWindow))}`;
 	const contextPart =
-		contextPercentValue > 90
+		contextPercentValue != null && contextPercentValue > 90
 			? options.theme.fg("error", contextDisplay)
-			: contextPercentValue > 70
+			: contextPercentValue != null && contextPercentValue > 70
 				? options.theme.fg("warning", contextDisplay)
 				: contextDisplay;
 	statsParts.push(contextPart);
@@ -200,7 +226,7 @@ export default function (pi: ExtensionAPI) {
 						branch: footerData.getGitBranch(),
 						sessionName: ctx.sessionManager.getSessionName(),
 						statuses: footerData.getExtensionStatuses(),
-						entries: ctx.sessionManager.getEntries() as readonly SessionEntryLike[],
+						entries: ctx.sessionManager.getEntries(),
 						contextUsage: ctx.getContextUsage(),
 						model: ctx.model,
 						providerCount: footerData.getAvailableProviderCount(),
