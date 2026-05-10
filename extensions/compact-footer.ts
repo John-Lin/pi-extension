@@ -57,6 +57,14 @@ type RenderCompactFooterOptions = {
 	usingSubscription?: boolean;
 };
 
+type BuildRightSideOptions = {
+	model: ModelLike | undefined;
+	providerCount: number;
+	thinkingLevel: string;
+	leftWidth: number;
+	width: number;
+};
+
 function sanitizeStatusText(text: string): string {
 	return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
 }
@@ -128,51 +136,57 @@ function getTotals(entries: readonly unknown[]): Usage {
 	return totals;
 }
 
-function buildStatusParts(statuses: ReadonlyMap<string, string>): string[] {
+function buildStatusParts(statuses: ReadonlyMap<string, string>): readonly string[] {
 	return Array.from(statuses.entries())
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([, text]) => sanitizeStatusText(text))
 		.filter(Boolean);
 }
 
-function buildRightSide(model: ModelLike | undefined, providerCount: number, thinkingLevel: string, leftWidth: number, width: number): string {
-	const modelName = model?.id || "no-model";
+function buildTokenParts(totals: Usage, usingSubscription: boolean | undefined): readonly string[] {
+	const parts: string[] = [];
+	if (totals.input) parts.push(`↑${formatTokens(totals.input)}`);
+	if (totals.output) parts.push(`↓${formatTokens(totals.output)}`);
+	if (totals.cacheRead) parts.push(`R${formatTokens(totals.cacheRead)}`);
+	if (totals.cacheWrite) parts.push(`W${formatTokens(totals.cacheWrite)}`);
+	if (totals.cost.total || usingSubscription) {
+		parts.push(`$${totals.cost.total.toFixed(3)}${usingSubscription ? " (sub)" : ""}`);
+	}
+	return parts;
+}
+
+function buildContextPart(theme: FooterTheme, contextUsage: ContextUsageLike | undefined, model: ModelLike | undefined): string {
+	const contextWindow = contextUsage?.contextWindow ?? model?.contextWindow ?? 0;
+	const contextPercentValue = contextUsage?.percent;
+	const contextDisplay =
+		contextPercentValue != null
+			? `${contextPercentValue.toFixed(1)}%/${formatTokens(contextWindow)}`
+			: `?/${formatTokens(contextWindow)}`;
+
+	if (contextPercentValue != null && contextPercentValue > 90) return theme.fg("error", contextDisplay);
+	if (contextPercentValue != null && contextPercentValue > 70) return theme.fg("warning", contextDisplay);
+	return contextDisplay;
+}
+
+function buildRightSide(options: BuildRightSideOptions): string {
+	const modelName = options.model?.id || "no-model";
 	let withoutProvider = modelName;
-	if (model?.reasoning) {
-		withoutProvider = thinkingLevel === "off" ? `${modelName} • thinking off` : `${modelName} • ${thinkingLevel}`;
+	if (options.model?.reasoning) {
+		withoutProvider = options.thinkingLevel === "off" ? `${modelName} • thinking off` : `${modelName} • ${options.thinkingLevel}`;
 	}
 
-	if (!model || providerCount <= 1) return withoutProvider;
+	if (!options.model || options.providerCount <= 1) return withoutProvider;
 
-	const withProvider = `(${model.provider}) ${withoutProvider}`;
-	return leftWidth + 2 + visibleWidth(withProvider) > width ? withoutProvider : withProvider;
+	const withProvider = `(${options.model.provider}) ${withoutProvider}`;
+	return options.leftWidth + 2 + visibleWidth(withProvider) > options.width ? withoutProvider : withProvider;
 }
 
 export function renderCompactFooterLines(options: RenderCompactFooterOptions): string[] {
 	const totals = getTotals(options.entries);
-	const statsParts = buildStatusParts(options.statuses);
-
-	if (totals.input) statsParts.push(`↑${formatTokens(totals.input)}`);
-	if (totals.output) statsParts.push(`↓${formatTokens(totals.output)}`);
-	if (totals.cacheRead) statsParts.push(`R${formatTokens(totals.cacheRead)}`);
-	if (totals.cacheWrite) statsParts.push(`W${formatTokens(totals.cacheWrite)}`);
-	if (totals.cost.total || options.usingSubscription) {
-		statsParts.push(`$${totals.cost.total.toFixed(3)}${options.usingSubscription ? " (sub)" : ""}`);
-	}
-
-	const contextWindow = options.contextUsage?.contextWindow ?? options.model?.contextWindow ?? 0;
-	const contextPercentValue = options.contextUsage?.percent;
-	const contextDisplay =
-		contextPercentValue != null
-			? `${contextPercentValue.toFixed(1)}%/${formatTokens(Number(contextWindow))}`
-			: `?/${formatTokens(Number(contextWindow))}`;
-	const contextPart =
-		contextPercentValue != null && contextPercentValue > 90
-			? options.theme.fg("error", contextDisplay)
-			: contextPercentValue != null && contextPercentValue > 70
-				? options.theme.fg("warning", contextDisplay)
-				: contextDisplay;
-	statsParts.push(contextPart);
+	const statusParts = buildStatusParts(options.statuses);
+	const tokenParts = buildTokenParts(totals, options.usingSubscription);
+	const contextPart = buildContextPart(options.theme, options.contextUsage, options.model);
+	const statsParts = [...statusParts, ...tokenParts, contextPart];
 
 	let statsLeft = statsParts.join(" ");
 	let statsLeftWidth = visibleWidth(statsLeft);
@@ -181,7 +195,13 @@ export function renderCompactFooterLines(options: RenderCompactFooterOptions): s
 		statsLeftWidth = visibleWidth(statsLeft);
 	}
 
-	const rightSide = buildRightSide(options.model, options.providerCount, options.thinkingLevel, statsLeftWidth, options.width);
+	const rightSide = buildRightSide({
+		model: options.model,
+		providerCount: options.providerCount,
+		thinkingLevel: options.thinkingLevel,
+		leftWidth: statsLeftWidth,
+		width: options.width,
+	});
 	const rightSideWidth = visibleWidth(rightSide);
 	const minPadding = 2;
 	const totalNeeded = statsLeftWidth + minPadding + rightSideWidth;
@@ -222,7 +242,7 @@ export default function (pi: ExtensionAPI) {
 						width,
 						theme,
 						cwd: ctx.sessionManager.getCwd(),
-						home: process.env.HOME || process.env.USERPROFILE,
+						home: process.env.HOME,
 						branch: footerData.getGitBranch(),
 						sessionName: ctx.sessionManager.getSessionName(),
 						statuses: footerData.getExtensionStatuses(),
