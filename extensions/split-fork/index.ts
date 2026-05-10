@@ -135,6 +135,11 @@ async function sendStartupInput(pi: ExtensionAPI, terminalId: string, startupInp
 }
 
 export default function (pi: ExtensionAPI): void {
+	// Ghostty-specific: uses AppleScript to drive Ghostty split panes.
+	// Skip registration entirely on non-macOS or non-Ghostty environments.
+	if (process.platform !== "darwin") return;
+	if (process.env.TERM_PROGRAM !== "ghostty") return;
+
 	let startupPromptSent = false;
 
 	pi.on("session_start", async () => {
@@ -154,11 +159,6 @@ export default function (pi: ExtensionAPI): void {
 	pi.registerCommand("split-fork", {
 		description: "Fork this session into a new pi process in chained Ghostty splits. Usage: /split-fork [optional prompt]",
 		handler: async (args, ctx) => {
-			if (process.platform !== "darwin") {
-				ctx.ui.notify("/split-fork currently requires macOS (Ghostty AppleScript).", "warning");
-				return;
-			}
-
 			const countCheck = await getGhosttyTerminalCount(pi);
 			if (countCheck.result.code !== 0) {
 				const reason = countCheck.result.stderr?.trim() || countCheck.result.stdout?.trim() || "unknown osascript error";
