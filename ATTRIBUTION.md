@@ -5,6 +5,7 @@ This repository is licensed under MIT for original work by John Lin. Some files 
 ## Original work
 
 - `extensions/btw/` — original extension developed by John Lin.
+- `extensions/compact-footer.ts` — original compact footer extension developed by John Lin.
 
 ## Adapted from `earendil-works/pi-mono` (MIT)
 
@@ -14,9 +15,10 @@ This repository is licensed under MIT for original work by John Lin. Some files 
 - Imported or adapted paths:
   - `extensions/notify.ts` from `packages/coding-agent/examples/extensions/notify.ts`
   - `extensions/plan-mode/` from `packages/coding-agent/examples/extensions/plan-mode/`
-  - `extensions/status-line.ts` from `packages/coding-agent/examples/extensions/status-line.ts`
+  - Turn status behavior in `extensions/compact-footer.ts` from `packages/coding-agent/examples/extensions/status-line.ts`
 - Notes:
   - `notify.ts` adds macOS completion sound playback and local tests.
+  - `compact-footer.ts` merges turn status updates into the custom compact footer renderer.
   - `plan-mode/` was copied from a local checkout of `pi-mono` on 2026-05-05. The exact upstream commit for the copied files was not separately recorded.
 
 ## Adapted from `mitsuhiko/agent-stuff` (Apache-2.0)

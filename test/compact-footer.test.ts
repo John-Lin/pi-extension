@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { renderCompactFooterLines } from "../extensions/compact-footer.ts";
+import compactFooter, { renderCompactFooterLines } from "../extensions/compact-footer.ts";
 
 const theme = {
 	fg(_color: string, text: string) {
@@ -254,7 +254,7 @@ test("compact footer normalizes whitespace and control chars in status text", ()
 	assert.equal(lines[1].includes("Turn 4  complete"), false);
 });
 
-test("compact footer registers a session_start handler", async () => {
+test("compact footer registers session and turn lifecycle handlers", () => {
 	type EventHandler = (...args: unknown[]) => unknown;
 	const handlers = new Map<string, EventHandler>();
 	const pi = {
@@ -262,10 +262,47 @@ test("compact footer registers a session_start handler", async () => {
 			handlers.set(event, handler);
 		},
 	};
-	const module = await import("../extensions/compact-footer.ts");
-	module.default(pi);
+
+	compactFooter(pi);
 
 	assert.ok(handlers.has("session_start"));
+	assert.ok(handlers.has("turn_start"));
+	assert.ok(handlers.has("turn_end"));
+});
+
+test("compact footer updates turn status through lifecycle events", async () => {
+	type EventHandler = (...args: unknown[]) => unknown;
+	const handlers = new Map<string, EventHandler>();
+	const statusCalls: { key: string; text: string | undefined }[] = [];
+	const pi = {
+		on(event: string, handler: EventHandler) {
+			handlers.set(event, handler);
+		},
+	};
+	const ctx = {
+		ui: {
+			theme: {
+				fg(color: string, text: string) {
+					return `[${color}]${text}`;
+				},
+			},
+			setStatus(key: string, text: string | undefined) {
+				statusCalls.push({ key, text });
+			},
+			setFooter() {},
+		},
+	};
+
+	compactFooter(pi);
+	await handlers.get("session_start")?.({}, ctx);
+	await handlers.get("turn_start")?.({}, ctx);
+	await handlers.get("turn_end")?.({}, ctx);
+
+	assert.deepEqual(statusCalls, [
+		{ key: "turn-status", text: "[dim]Ready" },
+		{ key: "turn-status", text: "[accent]●[dim] Turn 1..." },
+		{ key: "turn-status", text: "[success]✓[dim] Turn 1 complete" },
+	]);
 });
 
 test("compact footer keeps token stats dim after colored status text resets ansi", () => {

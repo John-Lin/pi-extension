@@ -65,6 +65,8 @@ type BuildRightSideOptions = {
 	width: number;
 };
 
+const TURN_STATUS_KEY = "turn-status";
+
 function sanitizeStatusText(text: string): string {
 	return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
 }
@@ -229,7 +231,10 @@ export function renderCompactFooterLines(options: RenderCompactFooterOptions): s
 }
 
 export default function (pi: ExtensionAPI) {
+	let turnCount = 0;
+
 	pi.on("session_start", (_event, ctx) => {
+		ctx.ui.setStatus(TURN_STATUS_KEY, ctx.ui.theme.fg("dim", "Ready"));
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const unsubscribe = footerData.onBranchChange(() => tui.requestRender());
 
@@ -255,5 +260,18 @@ export default function (pi: ExtensionAPI) {
 				},
 			};
 		});
+	});
+
+	pi.on("turn_start", (_event, ctx) => {
+		turnCount++;
+		const spinner = ctx.ui.theme.fg("accent", "●");
+		const text = ctx.ui.theme.fg("dim", ` Turn ${turnCount}...`);
+		ctx.ui.setStatus(TURN_STATUS_KEY, spinner + text);
+	});
+
+	pi.on("turn_end", (_event, ctx) => {
+		const check = ctx.ui.theme.fg("success", "✓");
+		const text = ctx.ui.theme.fg("dim", ` Turn ${turnCount} complete`);
+		ctx.ui.setStatus(TURN_STATUS_KEY, check + text);
 	});
 }
