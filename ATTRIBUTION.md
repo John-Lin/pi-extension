@@ -5,28 +5,19 @@ This repository is licensed under MIT for original work by John Lin. Some files 
 ## Original work
 
 - `extensions/btw/` — original extension developed by John Lin.
-## Adapted from `earendil-works/pi-mono` (MIT)
-
-- Source repo: <https://github.com/earendil-works/pi-mono>
-- Upstream license: MIT
-- License copy: `third_party/licenses/pi-mono-MIT.txt`
-- Imported or adapted paths:
-  - `extensions/notify.ts` from `packages/coding-agent/examples/extensions/notify.ts`
-  - `extensions/plan-mode/` from `packages/coding-agent/examples/extensions/plan-mode/`
-- Notes:
-  - `notify.ts` adds macOS completion sound playback and local tests.
-  - `plan-mode/` was copied from a local checkout of `pi-mono` on 2026-05-05. The exact upstream commit for the copied files was not separately recorded.
-
 ## Adapted from `earendil-works/pi` (MIT)
 
-- Source repo: <https://github.com/earendil-works/pi>
+- Source repo: <https://github.com/earendil-works/pi> (formerly `earendil-works/pi-mono`)
 - Upstream license: MIT
 - License copy: `third_party/licenses/pi-MIT.txt`
 - Imported or adapted paths:
+  - `extensions/notify.ts` from `packages/coding-agent/examples/extensions/notify.ts`
+  - `extensions/plan-mode/` from `packages/coding-agent/examples/extensions/plan-mode/`
   - `extensions/tps.ts` from `.pi/extensions/tps.ts`
 - Notes:
+  - `notify.ts` adds macOS completion sound playback and local tests.
+  - `plan-mode/` was copied from a local checkout on 2026-05-05. The exact upstream commit for the copied files was not separately recorded.
   - `tps.ts` was copied as-is on 2026-05-18 at upstream commit `3e5ad67e0f325d4888f82f9b82966218eb4407f5`.
-  - `earendil-works/pi` is the current name of the repository previously called `pi-mono` (see the section above for earlier imports made before the rename).
 
 ## Adapted from `mitsuhiko/agent-stuff` (Apache-2.0)
 
