@@ -27,7 +27,7 @@ When loading the skill standalone with
 cd skills/gemini-web-search && npm install
 ```
 
-### Env vars
+### Credentials
 
 | Var | Used by | Notes |
 |---|---|---|
@@ -36,13 +36,19 @@ cd skills/gemini-web-search && npm install
 | `GEMINI_PROXY_AUTH_HEADER` | proxy | Header name carrying the auth credential, e.g. `Authorization` or a gateway-specific name. |
 | `GEMINI_PROXY_AUTH_VALUE` | proxy | Full header value. Include any prefix yourself (e.g. `Bearer xxxxx`). |
 
+**Direct mode also reads `~/.pi/agent/auth.json`.** If `GEMINI_API_KEY`
+is not set, the script falls back to the `google` provider entry in
+pi's auth file (only `type: "api_key"` is supported; OAuth entries are
+ignored). The location respects `PI_CODING_AGENT_DIR`. Values starting
+with `!` are executed as shell commands, matching pi's own convention.
+
 ### Mode selection
 
 The script picks a mode in this order:
 
 1. `--mode direct|proxy` if passed.
 2. Else **proxy** when `GEMINI_PROXY_URL` is set.
-3. Else **direct** when `GEMINI_API_KEY` is set.
+3. Else **direct** when `GEMINI_API_KEY` is set or `auth.json` has a `google` api_key entry.
 4. Else: error.
 
 ### Example: corporate gateway in `~/.zshrc`

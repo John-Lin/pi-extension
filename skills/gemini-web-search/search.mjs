@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 import { GoogleGenAI } from "@google/genai";
+import { existsSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const DEFAULT_MODEL = "gemini-3.1-flash-lite";
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -13,6 +17,10 @@ const ENV = {
 	proxyAuthHeader: "GEMINI_PROXY_AUTH_HEADER",
 	proxyAuthValue: "GEMINI_PROXY_AUTH_VALUE",
 };
+
+// Pi stores credentials in auth.json keyed by provider name. The built-in
+// provider for Google AI is called "google".
+const PI_AUTH_PROVIDER = "google";
 
 function parseArgs(argv) {
 	const out = {
@@ -98,10 +106,53 @@ Examples:
   node search.mjs "vite 7 breaking changes" --mode direct --json`;
 }
 
+function getAgentDir() {
+	const configured = process.env.PI_CODING_AGENT_DIR;
+	if (!configured) return join(homedir(), ".pi", "agent");
+	if (configured === "~") return homedir();
+	if (configured.startsWith("~/")) return join(homedir(), configured.slice(2));
+	return configured;
+}
+
+function resolveConfigValue(value) {
+	if (typeof value !== "string" || !value) return undefined;
+	if (value.startsWith("!")) {
+		try {
+			const out = execSync(value.slice(1), {
+				encoding: "utf8",
+				timeout: 10000,
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim();
+			return out || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+	return process.env[value] || value;
+}
+
+function readPiAuthKey() {
+	const authPath = join(getAgentDir(), "auth.json");
+	if (!existsSync(authPath)) return undefined;
+	let data;
+	try {
+		data = JSON.parse(readFileSync(authPath, "utf8"));
+	} catch {
+		return undefined;
+	}
+	const entry = data?.[PI_AUTH_PROVIDER];
+	if (!entry) return undefined;
+	const type = entry.type || (entry.key ? "api_key" : undefined);
+	if (type !== "api_key") return undefined;
+	return resolveConfigValue(entry.key);
+}
+
 function selectMode(args) {
 	const env = process.env;
 	const hasProxy = !!env[ENV.proxyUrl];
-	const hasDirect = !!env[ENV.directApiKey];
+	const directKeyEnv = env[ENV.directApiKey];
+	const directKeyAuth = directKeyEnv ? undefined : readPiAuthKey();
+	const hasDirect = !!(directKeyEnv || directKeyAuth);
 
 	let mode = args.mode;
 	if (!mode) {
@@ -109,18 +160,22 @@ function selectMode(args) {
 		else if (hasDirect) mode = "direct";
 		else {
 			throw new Error(
-				`No credentials found. Set ${ENV.directApiKey} for direct mode, ` +
-					`or ${ENV.proxyUrl} (+ ${ENV.proxyAuthHeader} + ${ENV.proxyAuthValue}) for proxy mode.`,
+				`No credentials found. Set ${ENV.directApiKey} (or add a 'google' api_key ` +
+					`entry to ~/.pi/agent/auth.json) for direct mode, or ${ENV.proxyUrl} ` +
+					`(+ ${ENV.proxyAuthHeader} + ${ENV.proxyAuthValue}) for proxy mode.`,
 			);
 		}
 	}
 
 	if (mode === "direct") {
-		const apiKey = env[ENV.directApiKey];
+		const apiKey = directKeyEnv || directKeyAuth;
+		const apiKeySource = directKeyEnv ? `env:${ENV.directApiKey}` : "auth.json:google";
 		if (!apiKey) {
-			throw new Error(`direct mode requires ${ENV.directApiKey}.`);
+			throw new Error(
+				`direct mode requires ${ENV.directApiKey} or a 'google' api_key entry in ~/.pi/agent/auth.json.`,
+			);
 		}
-		return { mode, baseUrl: undefined, apiKey, headers: undefined };
+		return { mode, baseUrl: undefined, apiKey, headers: undefined, apiKeySource };
 	}
 
 	if (mode === "proxy") {
@@ -141,6 +196,7 @@ function selectMode(args) {
 			// comes from the custom header below.
 			apiKey: "proxy-auth-via-header",
 			headers: { [headerName]: headerValue },
+			apiKeySource: `env:${ENV.proxyAuthValue}`,
 		};
 	}
 
@@ -215,9 +271,9 @@ function extractCitations(interaction) {
 	return Array.from(seen.values());
 }
 
-function formatHuman({ mode, model, query, purpose, text, citations, stepTypes, showRaw }) {
+function formatHuman({ mode, apiKeySource, model, query, purpose, text, citations, stepTypes, showRaw }) {
 	const lines = [];
-	lines.push(`Mode: ${mode}`);
+	lines.push(`Mode: ${mode}${apiKeySource ? ` (auth: ${apiKeySource})` : ""}`);
 	lines.push(`Model: ${model}`);
 	lines.push(`Query: ${query}`);
 	lines.push(`Purpose: ${purpose}`);
@@ -310,6 +366,7 @@ async function main() {
 	console.log(
 		formatHuman({
 			mode: modeConfig.mode,
+			apiKeySource: modeConfig.apiKeySource,
 			model: args.model,
 			query: args.query,
 			purpose: args.purpose,
