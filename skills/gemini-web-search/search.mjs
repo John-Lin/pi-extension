@@ -6,7 +6,23 @@ import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const DEFAULT_MODEL = "gemini-3.1-flash-lite";
+// Per-mode default model.
+//
+// `gemini-3.1-flash-lite` is the fastest model we have verified through
+// the proxy path. The public Google AI endpoint (direct mode) does NOT
+// expose that name as a stable model ID though — `models.list` only
+// returns `gemini-3.1-flash-lite-preview`, which is gated and returns
+// 429 "no quota" on personal API keys. Proxy gateways typically alias
+// `gemini-3.1-flash-lite` to the preview (or to Vertex which uses a
+// different naming scheme) so the request goes through.
+//
+// To avoid surprising 429s when someone runs `--mode direct`, direct
+// mode falls back to `gemini-2.5-flash-lite`, which is a real GA model
+// ID on the public endpoint. Override per-call with `--model <id>`.
+const DEFAULT_MODEL_BY_MODE = {
+	proxy: "gemini-3.1-flash-lite",
+	direct: "gemini-2.5-flash-lite",
+};
 const DEFAULT_TIMEOUT_MS = 120000;
 
 // Env var names. The skill is intentionally vendor-neutral; map your
@@ -24,7 +40,8 @@ const PI_AUTH_PROVIDER = "google";
 
 function parseArgs(argv) {
 	const out = {
-		model: DEFAULT_MODEL,
+		// Resolved after mode is selected; see DEFAULT_MODEL_BY_MODE.
+		model: undefined,
 		purpose: "general research support",
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		mode: undefined,
@@ -100,6 +117,10 @@ Modes:
 
 If --mode is omitted, the script picks proxy when ${ENV.proxyUrl} is set,
 otherwise direct when ${ENV.directApiKey} is set.
+
+Default model depends on mode:
+  proxy  -> ${DEFAULT_MODEL_BY_MODE.proxy}
+  direct -> ${DEFAULT_MODEL_BY_MODE.direct}
 
 Examples:
   node search.mjs "latest python release" --purpose "update dependency notes"
@@ -307,6 +328,7 @@ async function main() {
 		process.exit(1);
 	}
 
+	const model = args.model || DEFAULT_MODEL_BY_MODE[modeConfig.mode];
 	const client = createClient(modeConfig);
 
 	const signal =
@@ -325,7 +347,7 @@ async function main() {
 	try {
 		interaction = await client.interactions.create(
 			{
-				model: args.model,
+				model,
 				input: buildPrompt(args.query, args.purpose),
 				tools: [{ type: "google_search" }],
 			},
@@ -349,7 +371,7 @@ async function main() {
 			JSON.stringify(
 				{
 					mode: modeConfig.mode,
-					model: args.model,
+					model,
 					query: args.query,
 					purpose: args.purpose,
 					text,
@@ -367,7 +389,7 @@ async function main() {
 		formatHuman({
 			mode: modeConfig.mode,
 			apiKeySource: modeConfig.apiKeySource,
-			model: args.model,
+			model,
 			query: args.query,
 			purpose: args.purpose,
 			text,

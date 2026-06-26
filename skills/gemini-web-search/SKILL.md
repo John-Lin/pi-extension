@@ -85,7 +85,7 @@ node search.mjs "browser HTTP/3 support" --model gemini-2.5-flash --raw
 Flags:
 
 - `--purpose <text>` — context shown to the model (default: `general research support`)
-- `--model <id>` — Gemini model id (default: `gemini-3.1-flash-lite`)
+- `--model <id>` — Gemini model id. Default depends on mode: `gemini-3.1-flash-lite` for proxy, `gemini-2.5-flash-lite` for direct (see Notes below for why they differ).
 - `--mode direct|proxy` — override auto-detection
 - `--timeout <ms>` — request timeout (default: `120000`)
 - `--json` — emit a JSON object with `mode`, `text`, `citations`, `steps`
@@ -106,6 +106,13 @@ section built from `model_output` annotations.
 
 ## Notes & Gotchas
 
+- **Default model differs between modes.** Proxy mode defaults to
+  `gemini-3.1-flash-lite` (fastest verified through corporate gateways).
+  Direct mode defaults to `gemini-2.5-flash-lite` because
+  `gemini-3.1-flash-lite` is not exposed as a stable model ID on the
+  public `ai.google.dev` endpoint — `models.list` only returns
+  `gemini-3.1-flash-lite-preview`, which is gated and returns 429 "no
+  quota" on personal API keys. Override either default with `--model`.
 - **Citation URLs are Google redirect URLs**
   (`https://vertexaisearch.cloud.google.com/grounding-api-redirect/...`).
   They resolve to the real source on click; the `title` field carries
