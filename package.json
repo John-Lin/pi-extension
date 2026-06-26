@@ -11,6 +11,9 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts"
   },
+  "dependencies": {
+    "@google/genai": "^2.10.0"
+  },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "^0.74.0",
     "@earendil-works/pi-ai": "^0.74.0",
@@ -26,6 +29,9 @@
   "pi": {
     "extensions": [
       "./extensions"
+    ],
+    "skills": [
+      "./skills"
     ]
   }
 }
