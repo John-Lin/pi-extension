@@ -1,10 +1,10 @@
 # Upstream Source
 
-- Source repo: <https://github.com/earendil-works/pi-mono>
+- Source repo: <https://github.com/earendil-works/pi> (formerly `earendil-works/pi-mono`)
 - Upstream path: `packages/coding-agent/examples/extensions/notify.ts`
 - Upstream license: MIT
-- License copy: `../third_party/licenses/pi-mono-MIT.txt`
-- Adapted from a local checkout of `pi-mono`.
+- License copy: `../third_party/licenses/pi-MIT.txt`
+- Adapted from a local checkout of `pi`.
 - The exact upstream commit for the imported file was not separately recorded.
 
 ## Local changes

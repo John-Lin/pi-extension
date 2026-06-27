@@ -2,7 +2,7 @@
  * Pi Notify Extension
  *
  * Adapted from:
- * https://github.com/earendil-works/pi-mono
+ * https://github.com/earendil-works/pi
  * packages/coding-agent/examples/extensions/notify.ts
  * License: MIT
  *

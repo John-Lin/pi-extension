@@ -1,9 +1,9 @@
 # Upstream Source
 
-- Source repo: <https://github.com/earendil-works/pi-mono>
+- Source repo: <https://github.com/earendil-works/pi> (formerly `earendil-works/pi-mono`)
 - Upstream path: `packages/coding-agent/examples/extensions/plan-mode/`
 - Upstream license: MIT
-- License copy: `../../third_party/licenses/pi-mono-MIT.txt`
+- License copy: `../../third_party/licenses/pi-MIT.txt`
 - Imported from a local checkout on 2026-05-05.
 - The exact upstream commit for the copied files was not separately recorded.
 
