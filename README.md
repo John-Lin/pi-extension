@@ -7,6 +7,7 @@ Personal extensions for pi.
 ```text
 extensions/
   notify.ts
+  tps.ts
   btw/
     index.ts
     panel.ts
@@ -19,9 +20,13 @@ extensions/
     index.ts
     utils.ts
     README.md
+skills/
+  gemini-web-search/
+    SKILL.md
+    search.mjs
 ```
 
-Pi auto-discovers top-level extension files and directory entrypoints like `extensions/btw/index.ts`.
+Pi auto-discovers top-level extension files and directory entrypoints like `extensions/btw/index.ts`. Skills under `skills/` are registered through the `pi` manifest in `package.json`.
 
 `/btw` now runs as a bottom overlay inside pi, so it no longer depends on Ghostty or AppleScript.
 
