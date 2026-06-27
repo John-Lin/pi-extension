@@ -1,5 +1,5 @@
 import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { BtwBottomOverlay } from "./panel.ts";
 
