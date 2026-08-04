@@ -43,7 +43,7 @@ The script instructs the model to:
 
 ## Notes
 
-- No extra npm install is required.
-- If module resolution fails, set `PI_AI_MODULE_PATH` to `@earendil-works/pi-ai`'s `dist/index.js` path.
-- If OAuth helper resolution fails, set `PI_AI_OAUTH_MODULE_PATH` to `@earendil-works/pi-ai`'s `dist/oauth.js` path.
-- For OAuth providers, the script can fall back to a still-valid cached `access` token from `~/.pi/agent/auth.json`.
+- No npm install and no `@earendil-works/pi-ai` import are required; the script only needs Node.
+- Credentials are read from `~/.pi/agent/auth.json` (override the directory with `PI_CODING_AGENT_DIR`). The file is never written to.
+- For OAuth providers the script uses the cached `access` token as-is. Refreshing stays pi's job, so an expired token fails with a message telling you to run `pi` once and retry.
+- `openai-codex` is pinned to `gpt-5.6-luna`; pass `--model` to override.

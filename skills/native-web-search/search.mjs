@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, writeFileSync, realpathSync } from "fs";
-import { spawnSync, execSync } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import { execSync } from "child_process";
 import { homedir } from "os";
-import { dirname, isAbsolute, join, resolve } from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import { join } from "path";
+import { pathToFileURL } from "url";
 
 function parseArgs(argv) {
 	const out = {
@@ -86,10 +86,6 @@ function readJson(path, fallback = {}) {
 	}
 }
 
-function writeJson(path, value) {
-	writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
 function resolveConfigValue(config) {
 	if (typeof config !== "string" || !config) return undefined;
 	if (config.startsWith("!")) {
@@ -123,7 +119,7 @@ function normalizeProvider(provider) {
 	return undefined;
 }
 
-function pickProvider(argProvider, settings, auth) {
+export function pickProvider(argProvider, settings, auth) {
 	const forced = normalizeProvider(argProvider);
 	if (forced) return forced;
 
@@ -148,120 +144,6 @@ function decodeJwtAccountId(jwt) {
 	}
 }
 
-function findPiExecutable() {
-	const cmd = process.platform === "win32" ? "where" : "which";
-	const result = spawnSync(cmd, ["pi"], { encoding: "utf8" });
-	if (result.status !== 0) return undefined;
-	const first = result.stdout
-		.split(/\r?\n/)
-		.map((x) => x.trim())
-		.find(Boolean);
-	return first || undefined;
-}
-
-function collectModuleCandidates(fileName = "index.js", envVarName = "PI_AI_MODULE_PATH") {
-	const candidates = new Set();
-
-	const add = (p) => {
-		if (!p) return;
-		const abs = isAbsolute(p) ? p : resolve(p);
-		candidates.add(abs);
-	};
-
-	if (envVarName && process.env[envVarName]) add(process.env[envVarName]);
-
-	const cwd = process.cwd();
-	const scriptDir = dirname(fileURLToPath(import.meta.url));
-	for (const start of [cwd, scriptDir]) {
-		let dir = start;
-		for (let i = 0; i < 8; i++) {
-			add(join(dir, "node_modules", "@earendil-works", "pi-ai", "dist", fileName));
-			add(join(dir, "packages", "ai", "dist", fileName));
-			add(join(dir, "ai", "dist", fileName));
-			const parent = dirname(dir);
-			if (parent === dir) break;
-			dir = parent;
-		}
-	}
-
-	const piExec = findPiExecutable();
-	if (piExec) {
-		try {
-			const piReal = realpathSync(piExec);
-			const piDir = dirname(piReal);
-			add(join(piDir, "..", "..", "ai", "dist", fileName));
-			add(join(piDir, "..", "..", "pi-ai", "dist", fileName));
-			add(join(piDir, "..", "node_modules", "@earendil-works", "pi-ai", "dist", fileName));
-			add(join(piDir, "..", "..", "node_modules", "@earendil-works", "pi-ai", "dist", fileName));
-		} catch {
-			// ignore
-		}
-	}
-
-	add(join(homedir(), "Development", "pi-mono", "packages", "ai", "dist", fileName));
-
-	return Array.from(candidates);
-}
-
-async function loadPiAi() {
-	const tried = [];
-
-	try {
-		return await import("@earendil-works/pi-ai");
-	} catch (err) {
-		tried.push(`@earendil-works/pi-ai (${err?.code || err?.message || "not found"})`);
-	}
-
-	for (const candidate of collectModuleCandidates("index.js", "PI_AI_MODULE_PATH")) {
-		if (!existsSync(candidate)) continue;
-		try {
-			return await import(pathToFileURL(candidate).href);
-		} catch (err) {
-			tried.push(`${candidate} (${err?.code || err?.message || "failed"})`);
-		}
-	}
-
-	throw new Error(
-		`Could not load @earendil-works/pi-ai. Set PI_AI_MODULE_PATH to its dist/index.js.\nTried:\n- ${tried.join("\n- ")}`,
-	);
-}
-
-async function loadPiAiOAuth(piAi) {
-	if (typeof piAi?.getOAuthApiKey === "function") {
-		return { getOAuthApiKey: piAi.getOAuthApiKey.bind(piAi) };
-	}
-
-	const tried = [];
-
-	try {
-		const oauth = await import("@earendil-works/pi-ai/oauth");
-		if (typeof oauth.getOAuthApiKey === "function") {
-			return { getOAuthApiKey: oauth.getOAuthApiKey.bind(oauth) };
-		}
-		tried.push("@earendil-works/pi-ai/oauth (missing getOAuthApiKey export)");
-	} catch (err) {
-		tried.push(`@earendil-works/pi-ai/oauth (${err?.code || err?.message || "not found"})`);
-	}
-
-	for (const candidate of collectModuleCandidates("oauth.js", "PI_AI_OAUTH_MODULE_PATH")) {
-		if (!existsSync(candidate)) continue;
-		try {
-			const oauth = await import(pathToFileURL(candidate).href);
-			if (typeof oauth.getOAuthApiKey === "function") {
-				return { getOAuthApiKey: oauth.getOAuthApiKey.bind(oauth) };
-			}
-			tried.push(`${candidate} (missing getOAuthApiKey export)`);
-		} catch (err) {
-			tried.push(`${candidate} (${err?.code || err?.message || "failed"})`);
-		}
-	}
-
-	return {
-		getOAuthApiKey: undefined,
-		error: `Could not load getOAuthApiKey. Set PI_AI_OAUTH_MODULE_PATH to pi-ai dist/oauth.js.\nTried:\n- ${tried.join("\n- ")}`,
-	};
-}
-
 function parseExpiryTimestamp(expires) {
 	if (typeof expires === "number" && Number.isFinite(expires)) {
 		if (expires <= 0) return undefined;
@@ -284,7 +166,7 @@ function parseExpiryTimestamp(expires) {
 	return undefined;
 }
 
-function getCachedOAuthAccess(entry, now = Date.now()) {
+export function getCachedOAuthAccess(entry, now = Date.now()) {
 	if (!entry || typeof entry !== "object") return undefined;
 
 	const apiKey = resolveConfigValue(entry.access);
@@ -301,35 +183,18 @@ function getCachedOAuthAccess(entry, now = Date.now()) {
 	};
 }
 
-function pickFastModel(provider, requestedModel, piAi) {
-	const models = typeof piAi.getModels === "function" ? piAi.getModels(provider) : [];
-	if (!Array.isArray(models) || models.length === 0) {
-		if (requestedModel) return { id: requestedModel, baseUrl: undefined };
-		if (provider === "openai-codex") return { id: "gpt-5.6-luna", baseUrl: "https://chatgpt.com/backend-api" };
-		return { id: "claude-haiku-4-5", baseUrl: "https://api.anthropic.com" };
-	}
+const DEFAULT_MODELS = {
+	"openai-codex": { id: "gpt-5.6-luna", baseUrl: "https://chatgpt.com/backend-api" },
+	anthropic: { id: "claude-haiku-4-5", baseUrl: "https://api.anthropic.com" },
+};
 
-	if (requestedModel) {
-		const exact = models.find((m) => m.id === requestedModel);
-		if (exact) return exact;
-		return { ...models[0], id: requestedModel };
-	}
-
-	const preferredIds =
-		provider === "openai-codex"
-			? ["gpt-5.6-luna", "gpt-5.4-mini"]
-			: ["claude-haiku-4-5", "claude-3-5-haiku-latest", "claude-3-5-haiku-20241022"];
-
-	for (const id of preferredIds) {
-		const found = models.find((m) => m.id === id);
-		if (found) return found;
-	}
-
-	const heuristic = models.find((m) => /mini|haiku|spark|flash|fast/i.test(m.id));
-	return heuristic || models[0];
+export function pickFastModel(provider, requestedModel) {
+	const fallback = DEFAULT_MODELS[provider] || DEFAULT_MODELS["openai-codex"];
+	if (requestedModel) return { ...fallback, id: requestedModel };
+	return { ...fallback };
 }
 
-async function resolveApiKey(provider, auth, authPath, piAi) {
+export function resolveApiKey(provider, auth, authPath) {
 	const entry = auth?.[provider];
 	if (!entry) {
 		throw new Error(`No credentials for provider '${provider}' in ${authPath}`);
@@ -347,42 +212,20 @@ async function resolveApiKey(provider, auth, authPath, piAi) {
 		throw new Error(`Unsupported credential type for ${provider}: ${String(entry.type || "unknown")}`);
 	}
 
-	const fallbackToken = getCachedOAuthAccess(entry);
-	const oauth = await loadPiAiOAuth(piAi);
+	// This skill only reads tokens; refreshing and storing them stays pi's job, so
+	// the credential file is never rewritten from here.
+	const cached = getCachedOAuthAccess(entry);
+	if (cached) return cached;
 
-	if (typeof oauth.getOAuthApiKey !== "function") {
-		if (fallbackToken) return fallbackToken;
-		throw new Error(oauth.error || "Loaded pi-ai module does not export getOAuthApiKey");
+	if (!resolveConfigValue(entry.access)) {
+		throw new Error(`No cached access token for '${provider}' in ${authPath}. Run \`pi\` once to sign in, then retry.`);
 	}
 
-	const oauthCreds = {};
-	for (const [k, v] of Object.entries(auth || {})) {
-		if (v && (v.type === "oauth" || (v.access && v.refresh && v.expires))) {
-			oauthCreds[k] = v;
-		}
-	}
-
-	let refreshed;
-	try {
-		refreshed = await oauth.getOAuthApiKey(provider, oauthCreds);
-	} catch (err) {
-		if (fallbackToken) return fallbackToken;
-		throw err;
-	}
-
-	if (!refreshed?.apiKey) {
-		if (fallbackToken) return fallbackToken;
-		throw new Error(`No OAuth credentials available for provider '${provider}'`);
-	}
-
-	const mergedCred = { type: "oauth", ...(entry || {}), ...(refreshed.newCredentials || {}) };
-	auth[provider] = mergedCred;
-	writeJson(authPath, auth);
-
-	return {
-		apiKey: refreshed.apiKey,
-		accountId: mergedCred.accountId,
-	};
+	const expiresAt = parseExpiryTimestamp(entry.expires);
+	const when = expiresAt ? new Date(expiresAt).toISOString() : "an unknown time";
+	throw new Error(
+		`The cached OAuth token for '${provider}' expired at ${when}. Run \`pi\` once to refresh it, then retry.`,
+	);
 }
 
 function buildUserPrompt(query, purpose) {
@@ -589,9 +432,8 @@ async function main() {
 	const settings = readJson(settingsPath, {});
 
 	const provider = pickProvider(args.provider, settings, auth);
-	const piAi = await loadPiAi();
-	const model = pickFastModel(provider, args.model, piAi);
-	const { apiKey, accountId } = await resolveApiKey(provider, auth, authPath, piAi);
+	const model = pickFastModel(provider, args.model);
+	const { apiKey, accountId } = resolveApiKey(provider, auth, authPath);
 
 	const text =
 		provider === "openai-codex"
@@ -635,7 +477,11 @@ async function main() {
 	console.log(text);
 }
 
-main().catch((err) => {
-	console.error(`Error: ${err?.message || err}`);
-	process.exit(1);
-});
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+	main().catch((err) => {
+		console.error(`Error: ${err?.message || err}`);
+		process.exit(1);
+	});
+}
