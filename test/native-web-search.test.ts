@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
-import { getCachedOAuthAccess, pickFastModel, pickProvider, resolveApiKey } from "../skills/native-web-search/search.mjs";
+import {
+	assertAnthropicResponseComplete,
+	assertCodexResponseComplete,
+	getCachedOAuthAccess,
+	parseArgs,
+	pickFastModel,
+	pickProvider,
+	readJson,
+	resolveApiKey,
+} from "../skills/native-web-search/search.mjs";
 
 test("openai-codex is pinned to gpt-5.6-luna", () => {
 	const model = pickFastModel("openai-codex");
@@ -53,4 +65,45 @@ test("resolving credentials never mutates the auth record", () => {
 test("a credential expiring within the skew window counts as expired", () => {
 	assert.equal(getCachedOAuthAccess({ access: "t", expires: Date.now() + 5_000 }), undefined);
 	assert.ok(getCachedOAuthAccess({ access: "t", expires: Date.now() + 600_000 }));
+});
+
+test("a codex run that reached the completed status is accepted", () => {
+	assert.doesNotThrow(() => assertCodexResponseComplete("completed"));
+});
+
+test("a codex run that ended on any other status is reported with that status", () => {
+	assert.throws(() => assertCodexResponseComplete("incomplete"), /incomplete/);
+});
+
+test("a codex stream that never reported a terminal status is reported as truncated", () => {
+	assert.throws(() => assertCodexResponseComplete(undefined), /without completing/i);
+});
+
+test("an anthropic response that ended its turn is accepted", () => {
+	assert.doesNotThrow(() => assertAnthropicResponseComplete("end_turn"));
+});
+
+test("an anthropic response cut off by the token cap is rejected, not returned as complete", () => {
+	assert.throws(() => assertAnthropicResponseComplete("max_tokens"), /max_tokens/);
+});
+
+test("a malformed credential file is reported as malformed, not as missing credentials", () => {
+	const path = join(mkdtempSync(join(tmpdir(), "nws-")), "auth.json");
+	writeFileSync(path, "{ not json", "utf8");
+	assert.throws(() => readJson(path), new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+	assert.throws(() => readJson(path), /parse|malformed|invalid/i);
+});
+
+test("a missing file falls back without complaint", () => {
+	assert.deepEqual(readJson(join(tmpdir(), "nws-does-not-exist.json"), { a: 1 }), { a: 1 });
+});
+
+test("a non-numeric --timeout is rejected instead of crashing later", () => {
+	assert.throws(() => parseArgs(["q", "--timeout", "abc"]), /timeout/i);
+	assert.throws(() => parseArgs(["q", "--timeout=abc"]), /timeout/i);
+});
+
+test("a valid --timeout is honoured and clamped to a sane floor", () => {
+	assert.equal(parseArgs(["q", "--timeout", "5000"]).timeoutMs, 5000);
+	assert.equal(parseArgs(["q", "--timeout", "10"]).timeoutMs, 1000);
 });

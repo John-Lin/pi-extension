@@ -6,7 +6,14 @@ import { homedir } from "os";
 import { join } from "path";
 import { pathToFileURL } from "url";
 
-function parseArgs(argv) {
+function parseTimeout(raw, fallback) {
+	if (raw === undefined || raw === "") return fallback;
+	const ms = Number(raw);
+	if (!Number.isFinite(ms)) throw new Error(`--timeout expects a number of milliseconds, got '${raw}'.`);
+	return Math.max(1000, ms);
+}
+
+export function parseArgs(argv) {
 	const out = {
 		provider: undefined,
 		model: undefined,
@@ -53,11 +60,11 @@ function parseArgs(argv) {
 			continue;
 		}
 		if (arg === "--timeout") {
-			out.timeoutMs = Math.max(1000, Number(argv[++i] || out.timeoutMs));
+			out.timeoutMs = parseTimeout(argv[++i], out.timeoutMs);
 			continue;
 		}
 		if (arg.startsWith("--timeout=")) {
-			out.timeoutMs = Math.max(1000, Number(arg.slice("--timeout=".length) || out.timeoutMs));
+			out.timeoutMs = parseTimeout(arg.slice("--timeout=".length), out.timeoutMs);
 			continue;
 		}
 		positional.push(arg);
@@ -77,12 +84,14 @@ Examples:
   node search.mjs "vite 7 breaking changes" --json`;
 }
 
-function readJson(path, fallback = {}) {
+export function readJson(path, fallback = {}) {
 	if (!existsSync(path)) return fallback;
 	try {
 		return JSON.parse(readFileSync(path, "utf8"));
-	} catch {
-		return fallback;
+	} catch (err) {
+		// A corrupt file is a different problem from a missing one; reporting it as
+		// "no credentials" would send the reader off to re-authenticate for nothing.
+		throw new Error(`Could not parse ${path}: ${err?.message || err}`);
 	}
 }
 
@@ -236,6 +245,20 @@ function buildSystemPrompt() {
 	return "You are a fast web research assistant. Always produce practical summaries and include full source URLs (no shortened links).";
 }
 
+// A partial summary reads exactly like a whole one, so both providers are held to
+// their own "this response finished" signal before any text is handed back.
+export function assertCodexResponseComplete(status) {
+	if (status === "completed") return;
+	if (!status) throw new Error("Codex stream ended without completing; the summary would be partial.");
+	throw new Error(`Codex ended with status '${status}' instead of 'completed'; the summary would be partial.`);
+}
+
+export function assertAnthropicResponseComplete(stopReason) {
+	if (stopReason === "max_tokens") {
+		throw new Error("Anthropic stopped at max_tokens; the summary would be cut off. Narrow the query and retry.");
+	}
+}
+
 function resolveCodexUrl(baseUrl = "https://chatgpt.com/backend-api") {
 	const normalized = String(baseUrl || "https://chatgpt.com/backend-api").replace(/\/+$/, "");
 	if (normalized.endsWith("/codex/responses")) return normalized;
@@ -300,6 +323,7 @@ async function runCodexSearch({ model, apiKey, accountId, query, purpose, timeou
 	let buffer = "";
 	let text = "";
 	let fallbackText = "";
+	let status;
 
 	while (true) {
 		const { done, value } = await reader.read();
@@ -320,6 +344,10 @@ async function runCodexSearch({ model, apiKey, accountId, query, purpose, timeou
 				event = JSON.parse(data);
 			} catch {
 				continue;
+			}
+
+			if (typeof event.response?.status === "string") {
+				status = event.response.status;
 			}
 
 			if (event.type === "response.output_text.delta" && typeof event.delta === "string") {
@@ -344,6 +372,8 @@ async function runCodexSearch({ model, apiKey, accountId, query, purpose, timeou
 			}
 		}
 	}
+
+	assertCodexResponseComplete(status);
 
 	const finalText = (text || fallbackText || "").trim();
 	if (!finalText) {
@@ -377,7 +407,7 @@ function buildAnthropicHeaders(apiKey) {
 async function runAnthropicSearch({ model, apiKey, query, purpose, timeoutMs }) {
 	const body = {
 		model,
-		max_tokens: 1800,
+		max_tokens: 16000,
 		temperature: 0,
 		system: buildSystemPrompt(),
 		tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
@@ -404,6 +434,8 @@ async function runAnthropicSearch({ model, apiKey, query, purpose, timeoutMs }) 
 	} catch {
 		throw new Error("Anthropic returned non-JSON response");
 	}
+
+	assertAnthropicResponseComplete(parsed.stop_reason);
 
 	const text = (parsed.content || [])
 		.filter((item) => item.type === "text" && typeof item.text === "string")
