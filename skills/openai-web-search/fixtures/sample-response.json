@@ -1,0 +1,176 @@
+{
+  "id": "resp_0922345d1fa709c7006a58aae419e8819a9e5b6cb0dea5611b",
+  "object": "response",
+  "created_at": 1784195812,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1784195823,
+  "error": null,
+  "frequency_penalty": 0.0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5.6-luna",
+  "moderation": null,
+  "output": [
+    {
+      "id": "rs_0922345d1fa709c7006a58aae529b4819a8ee6e1d2ec55d7ce",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "<redacted>",
+      "summary": []
+    },
+    {
+      "id": "ws_0922345d1fa709c7006a58aae56fc0819a926c081791045c4f",
+      "type": "web_search_call",
+      "status": "completed",
+      "action": {
+        "type": "search",
+        "queries": [
+          "site:nodejs.org latest Node.js LTS version official"
+        ],
+        "query": "site:nodejs.org latest Node.js LTS version official"
+      }
+    },
+    {
+      "id": "rs_0922345d1fa709c7006a58aaea3eec819aa0b264892e197600",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "<redacted>",
+      "summary": []
+    },
+    {
+      "id": "ws_0922345d1fa709c7006a58aaea7974819ab8c8aed793a42381",
+      "type": "web_search_call",
+      "status": "completed",
+      "action": {
+        "type": "open_page",
+        "url": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "rs_0922345d1fa709c7006a58aaeb8f2c819ab54f773bf901a278",
+      "type": "reasoning",
+      "content": [],
+      "encrypted_content": "<redacted>",
+      "summary": []
+    },
+    {
+      "id": "ws_0922345d1fa709c7006a58aaedb1a0819ab2a3245f8079ac67",
+      "type": "web_search_call",
+      "status": "completed",
+      "action": {
+        "type": "open_page",
+        "url": "https://nodejs.org/en/download"
+      }
+    },
+    {
+      "id": "msg_0922345d1fa709c7006a58aaeedd28819ab882d229203634f1",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "end_index": 177,
+              "start_index": 131,
+              "title": "Node.js \u2014 Download Node.js\u00ae",
+              "url": "https://nodejs.org/en/download"
+            },
+            {
+              "type": "url_citation",
+              "end_index": 365,
+              "start_index": 304,
+              "title": "Node.js \u2014 Node.js Releases",
+              "url": "https://nodejs.org/en/about/previous-releases"
+            }
+          ],
+          "logprobs": [],
+          "text": "The latest stable **Node.js LTS version is v24.18.0 LTS** (codename **Krypton**), according to the official Node.js download page. ([nodejs.org](https://nodejs.org/en/download))\n\nFor production applications, use an **Active LTS or Maintenance LTS** release; Node.js v24 is currently the newest LTS line. ([nodejs.org](https://nodejs.org/en/about/previous-releases))"
+        }
+      ],
+      "phase": "final_answer",
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0.0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": "24h",
+  "reasoning": {
+    "context": "all_turns",
+    "effort": "medium",
+    "mode": "standard",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tool_usage": {
+    "image_gen": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 0
+      },
+      "total_tokens": 0
+    },
+    "web_search": {
+      "num_requests": 1
+    }
+  },
+  "tools": [
+    {
+      "type": "web_search",
+      "return_token_budget": "default",
+      "search_content_types": [
+        "text"
+      ],
+      "search_context_size": "medium",
+      "user_location": {
+        "type": "approximate",
+        "city": null,
+        "country": "US",
+        "region": null,
+        "timezone": null
+      }
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 9809,
+    "input_tokens_details": {
+      "cache_write_tokens": 4414,
+      "cached_tokens": 0
+    },
+    "output_tokens": 395,
+    "output_tokens_details": {
+      "reasoning_tokens": 290
+    },
+    "total_tokens": 10204
+  },
+  "user": null,
+  "metadata": {}
+}
