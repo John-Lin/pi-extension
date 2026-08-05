@@ -61,7 +61,6 @@ It then appends a deduplicated `Citations` section from the response annotations
 
 - Citation URLs are Google redirect URLs that resolve to the real source on
   click; the `title` carries the source domain.
-- The 3.x flash models (`gemini-3.6-flash`, `gemini-3.5-flash-lite`, ...) need
-  paid billing on the API key; on a free-tier key they return 429 "no quota"
-  even though `models.list` shows them. On a free-tier key fall back with
-  `--model gemini-2.5-flash` (or `gemini-2.5-flash-lite`).
+- Use `gemini-3.6-flash` (default) or `gemini-3.5-flash-lite` (lower latency).
+  A 429 means the search-grounding quota is exhausted — report it rather than
+  switching to another model.
