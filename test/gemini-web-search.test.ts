@@ -53,7 +53,7 @@ test("a non-numeric --timeout is rejected instead of crashing later", () => {
 });
 
 test("usage advertises the default model and the required credentials", () => {
-	assert.match(usage(), /Default model: gemini-2\.5-flash/);
+	assert.match(usage(), /Default model: gemini-3\.6-flash/);
 	assert.match(usage(), /GEMINI_API_KEY/);
 });
 

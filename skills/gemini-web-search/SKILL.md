@@ -41,7 +41,7 @@ node search.mjs "browser HTTP/3 support" --json
 
 Optional flags:
 
-- `--model <id>` (default: `gemini-2.5-flash`; use `gemini-2.5-flash-lite` for lower latency)
+- `--model <id>` (default: `gemini-3.6-flash`; use `gemini-3.5-flash-lite` for lower latency)
 - `--purpose <text>`
 - `--timeout <ms>`
 - `--json`
@@ -61,7 +61,7 @@ It then appends a deduplicated `Citations` section from the response annotations
 
 - Citation URLs are Google redirect URLs that resolve to the real source on
   click; the `title` carries the source domain.
-- The 3.x flash models (`gemini-3.6-flash`, `gemini-3.5-flash-lite`, ...) are
-  listed by the public endpoint but return 429 "no quota" on free-tier personal
-  API keys; they need paid billing. That is why the default stays on
-  `gemini-2.5-flash`. Pass `--model` to use them on a paid key.
+- The 3.x flash models (`gemini-3.6-flash`, `gemini-3.5-flash-lite`, ...) need
+  paid billing on the API key; on a free-tier key they return 429 "no quota"
+  even though `models.list` shows them. On a free-tier key fall back with
+  `--model gemini-2.5-flash` (or `gemini-2.5-flash-lite`).

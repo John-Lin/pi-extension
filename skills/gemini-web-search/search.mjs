@@ -21,10 +21,9 @@ const AUTH_HEADER = "x-goog-api-key";
 // provider for Google AI is called "google".
 const PI_AUTH_PROVIDER = "google";
 
-// Newest model verified to have free-tier quota on personal API keys; the
-// 3.x flash models are listed by models.list but return 429 "no quota"
-// without paid billing. Override per-call with --model.
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// Needs paid billing on the API key; on a free-tier key the 3.x flash models
+// return 429 "no quota" — fall back with --model gemini-2.5-flash there.
+const DEFAULT_MODEL = "gemini-3.6-flash";
 const DEFAULT_TIMEOUT_MS = 120000;
 
 function parseTimeout(raw, fallback) {
