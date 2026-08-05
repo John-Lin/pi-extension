@@ -24,12 +24,14 @@ skills/
   gemini-web-search/
     SKILL.md
     search.mjs
+    fixtures/
   native-web-search/
     SKILL.md
     search.mjs
   openai-web-search/
     SKILL.md
     search.mjs
+    fixtures/
 ```
 
 Pi auto-discovers top-level extension files and directory entrypoints like `extensions/btw/index.ts`. Skills under `skills/` are registered through the `pi` manifest in `package.json`.
