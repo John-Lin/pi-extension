@@ -1,0 +1,110 @@
+{
+  "id": "v1_ChdvN0pZYXNIU0MtVzR2cjBQMGZ6VjBRZxIXbzdKWWFzSFNDLVc0dnIwUDBmelYwUWc",
+  "status": "completed",
+  "usage": {
+    "total_tokens": 135,
+    "total_input_tokens": 13,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 13
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 122,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 0,
+    "grounding_tool_count": [
+      {
+        "type": "google_search",
+        "count": 1
+      }
+    ]
+  },
+  "created": "2026-07-16T10:29:55Z",
+  "updated": "2026-07-16T10:29:55Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "id": "CjMAcjsi",
+      "signature": "<redacted>",
+      "type": "google_search_call",
+      "arguments": {
+        "queries": [
+          "latest stable Node.js LTS version"
+        ]
+      },
+      "search_type": "web_search"
+    },
+    {
+      "call_id": "CjMAcjsi",
+      "signature": "<redacted>",
+      "type": "google_search_result",
+      "result": [
+        {
+          "search_suggestions": "<redacted html>"
+        }
+      ],
+      "is_error": false
+    },
+    {
+      "signature": "<redacted>",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "As of July 16, 2026, the latest stable **Node.js LTS (Long-Term Support) version is v24.18.0**.\n\nFor production environments, this is the recommended version. If you are looking for the absolute latest features and are comfortable with a more frequent update cycle, the current release is **v26.5.0**.",
+          "annotations": [
+            {
+              "start_index": 88,
+              "end_index": 94,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGjUFJ-ndvgeeg8C9s40WZvXA6CeneiMgSB2WGZUbvqyvdI6vvJfsIAnlBW8RItD_bONGILuOFTtmzkPFUbaRKvcd4Vhy8JYaYHZ7Q=",
+              "title": "nodejs.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 88,
+              "end_index": 94,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG1wULtFKauA-sjZM2IDTxVFvKdGDWokAw3-VGG4OQdUPur0dROjnrFil7Pb_IVdlgaVXQfb8glTiBa6jeC3YqzNodiP3mKpwFoCgu66c-e_E8p2mA=",
+              "title": "nodejs.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 97,
+              "end_index": 157,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEyui05gJ7Ky8CEEumOVT6pA1ZFwYRb8CTJYDTySiVDGUi6TLc3U3di_wmI6xyRGTcEm1Exlf3dC48jVi63aFZOOpFaha6XI31KNLjVJfpijJrTi8y0Rv3W_-WdRwQvxz21doI=",
+              "title": "nodejs.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 97,
+              "end_index": 157,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGLudm8dUQtvZnYbVfbduHj47pFrCmk-Zy-8fnPVliQcUHopRtDBIJB8bIuqhONyMaeg_nwpCnK2e8CCMonxGaUuqRIBmNu7XbXTUF6r2zx7VHzoIndRJt391DkYdXbax7pvMUZNJJMjqU3Eg-ZG3Z0_vwpmr2-kmk1lOVj4pYxeRzTUAdoexV8PbULzTfnYfGG",
+              "title": "geeksforgeeks.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 295,
+              "end_index": 300,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGjUFJ-ndvgeeg8C9s40WZvXA6CeneiMgSB2WGZUbvqyvdI6vvJfsIAnlBW8RItD_bONGILuOFTtmzkPFUbaRKvcd4Vhy8JYaYHZ7Q=",
+              "title": "nodejs.org",
+              "type": "url_citation"
+            },
+            {
+              "start_index": 295,
+              "end_index": 300,
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG1wULtFKauA-sjZM2IDTxVFvKdGDWokAw3-VGG4OQdUPur0dROjnrFil7Pb_IVdlgaVXQfb8glTiBa6jeC3YqzNodiP3mKpwFoCgu66c-e_E8p2mA=",
+              "title": "nodejs.org",
+              "type": "url_citation"
+            }
+          ],
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-3.1-flash-lite"
+}

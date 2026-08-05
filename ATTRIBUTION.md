@@ -33,3 +33,4 @@ This repository is licensed under MIT for original work by John Lin. Some files 
   - Local changes to `split-fork` include refactoring the single file into a directory, extracting AppleScript helpers, and adding split layout selection logic.
   - `native-web-search/` was copied on 2026-08-04 at upstream commit `a3f8ab1108a48fec9e175f6cd5d9aaa4694ce29d`.
   - Local changes to `native-web-search/` include pinning the openai-codex model, removing the `@earendil-works/pi-ai` dependency and its module resolution, dropping the credential-file write-back, adding response-completion checks, and adding tests.
+  - `skills/openai-web-search/` is an original reimplementation but reuses the research-prompt wording and output contract that originate from `skills/native-web-search/` in the same upstream repo.
