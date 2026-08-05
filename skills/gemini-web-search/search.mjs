@@ -21,8 +21,8 @@ const AUTH_HEADER = "x-goog-api-key";
 // provider for Google AI is called "google".
 const PI_AUTH_PROVIDER = "google";
 
-// Needs paid billing on the API key; on a free-tier key the 3.x flash models
-// return 429 "no quota" — fall back with --model gemini-2.5-flash there.
+// Only gemini-3.6-flash (default) and gemini-3.5-flash-lite (lower latency)
+// are supported here; both do google_search grounding.
 const DEFAULT_MODEL = "gemini-3.6-flash";
 const DEFAULT_TIMEOUT_MS = 120000;
 
