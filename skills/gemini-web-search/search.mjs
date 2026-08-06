@@ -24,6 +24,7 @@ const PI_AUTH_PROVIDER = "google";
 // Only gemini-3.6-flash (default) and gemini-3.5-flash-lite (lower latency)
 // are supported here; both do google_search grounding.
 const DEFAULT_MODEL = "gemini-3.6-flash";
+const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
 
 function parseTimeout(raw, fallback) {
@@ -37,6 +38,7 @@ export function parseArgs(argv) {
 	const out = {
 		model: undefined,
 		purpose: "general research support",
+		thinkingLevel: DEFAULT_THINKING_LEVEL,
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		json: false,
 		raw: false,
@@ -61,6 +63,10 @@ export function parseArgs(argv) {
 			out.purpose = argv[++i] || out.purpose;
 		} else if (arg.startsWith("--purpose=")) {
 			out.purpose = arg.slice("--purpose=".length) || out.purpose;
+		} else if (arg === "--thinking") {
+			out.thinkingLevel = argv[++i] || out.thinkingLevel;
+		} else if (arg.startsWith("--thinking=")) {
+			out.thinkingLevel = arg.slice("--thinking=".length) || out.thinkingLevel;
 		} else if (arg === "--timeout") {
 			out.timeoutMs = parseTimeout(argv[++i], out.timeoutMs);
 		} else if (arg.startsWith("--timeout=")) {
@@ -76,7 +82,9 @@ export function parseArgs(argv) {
 
 export function usage() {
 	return `Usage:
-  node search.mjs "<query>" [--purpose "<why>"] [--model <id>] [--timeout <ms>] [--json] [--raw]
+  node search.mjs "<query>" [--purpose "<why>"] [--model <id>] [--thinking <level>] [--timeout <ms>] [--json] [--raw]
+
+Thinking level: defaults to ${DEFAULT_THINKING_LEVEL}.
 
 Calls Google AI Studio directly. Credentials (first match wins):
   ${TOKEN_ENV}   API key, sent as the "${AUTH_HEADER}" header.
@@ -166,7 +174,7 @@ export function buildPrompt(query, purpose) {
 	].join("\n");
 }
 
-export function buildRequestBody({ model, query, purpose }) {
+export function buildRequestBody({ model, query, purpose, thinkingLevel = DEFAULT_THINKING_LEVEL }) {
 	return {
 		model,
 		input: buildPrompt(query, purpose),
@@ -174,6 +182,7 @@ export function buildRequestBody({ model, query, purpose }) {
 		// generateContent {googleSearch:{}}). google_search and google_maps
 		// cannot be combined in a single request.
 		tools: [{ type: "google_search" }],
+		generation_config: { thinking_level: thinkingLevel },
 	};
 }
 
@@ -270,7 +279,14 @@ async function main() {
 				accept: "application/json",
 				...buildAuthHeaders(apiKey),
 			},
-			body: JSON.stringify(buildRequestBody({ model, query: args.query, purpose: args.purpose })),
+			body: JSON.stringify(
+				buildRequestBody({
+					model,
+					query: args.query,
+					purpose: args.purpose,
+					thinkingLevel: args.thinkingLevel,
+				}),
+			),
 			signal,
 		});
 		const payload = await res.text();

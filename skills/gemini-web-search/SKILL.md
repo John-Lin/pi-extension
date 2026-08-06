@@ -42,6 +42,7 @@ node search.mjs "browser HTTP/3 support" --json
 Optional flags:
 
 - `--model <id>` (default: `gemini-3.6-flash`; use `gemini-3.5-flash-lite` for lower latency)
+- `--thinking <level>` (default: `medium`; values: `minimal`, `low`, `medium`, `high`)
 - `--purpose <text>`
 - `--timeout <ms>`
 - `--json`
