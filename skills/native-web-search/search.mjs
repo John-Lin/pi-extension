@@ -13,11 +13,24 @@ function parseTimeout(raw, fallback) {
 	return Math.max(1000, ms);
 }
 
+function parseThinkingBudget(raw) {
+	const budget = Number(raw);
+	if (!Number.isInteger(budget) || budget < 1024) {
+		throw new Error(`--thinking-budget expects an integer of at least 1024 tokens, got '${raw}'.`);
+	}
+	return budget;
+}
+
+const DEFAULT_THINKING_EFFORT = "medium";
+const ANTHROPIC_MAX_TOKENS = 16000;
+
 export function parseArgs(argv) {
 	const out = {
 		provider: undefined,
 		model: undefined,
 		purpose: "general research support",
+		thinkingEffort: DEFAULT_THINKING_EFFORT,
+		thinkingBudget: undefined,
 		timeoutMs: 120000,
 		json: false,
 		help: false,
@@ -59,6 +72,22 @@ export function parseArgs(argv) {
 			out.purpose = arg.slice("--purpose=".length) || out.purpose;
 			continue;
 		}
+		if (arg === "--thinking") {
+			out.thinkingEffort = argv[++i] || out.thinkingEffort;
+			continue;
+		}
+		if (arg.startsWith("--thinking=")) {
+			out.thinkingEffort = arg.slice("--thinking=".length) || out.thinkingEffort;
+			continue;
+		}
+		if (arg === "--thinking-budget") {
+			out.thinkingBudget = parseThinkingBudget(argv[++i]);
+			continue;
+		}
+		if (arg.startsWith("--thinking-budget=")) {
+			out.thinkingBudget = parseThinkingBudget(arg.slice("--thinking-budget=".length));
+			continue;
+		}
 		if (arg === "--timeout") {
 			out.timeoutMs = parseTimeout(argv[++i], out.timeoutMs);
 			continue;
@@ -76,7 +105,10 @@ export function parseArgs(argv) {
 
 function usage() {
 	return `Usage:
-  node search.mjs "<query>" [--purpose "<why>"] [--provider openai-codex|anthropic] [--model <id>] [--json]
+  node search.mjs "<query>" [--purpose "<why>"] [--provider openai-codex|anthropic] [--model <id>] [--thinking <effort>] [--thinking-budget <tokens>] [--json]
+
+Thinking effort: OpenAI Codex only; defaults to ${DEFAULT_THINKING_EFFORT}.
+Thinking budget: Anthropic only; 1024 to ${ANTHROPIC_MAX_TOKENS - 1}.
 
 Examples:
   node search.mjs "latest python release" --purpose "update dependency notes"
@@ -277,13 +309,8 @@ function extractEventData(chunk) {
 	return payload;
 }
 
-async function runCodexSearch({ model, apiKey, accountId, query, purpose, timeoutMs, baseUrl }) {
-	const tokenAccountId = accountId || decodeJwtAccountId(apiKey);
-	if (!tokenAccountId) {
-		throw new Error("Could not determine ChatGPT account ID for openai-codex token.");
-	}
-
-	const body = {
+export function buildCodexRequestBody({ model, query, purpose, thinkingEffort = DEFAULT_THINKING_EFFORT }) {
+	return {
 		model,
 		store: false,
 		stream: true,
@@ -291,7 +318,17 @@ async function runCodexSearch({ model, apiKey, accountId, query, purpose, timeou
 		input: [{ role: "user", content: buildUserPrompt(query, purpose) }],
 		tools: [{ type: "web_search" }],
 		tool_choice: "auto",
+		reasoning: { effort: thinkingEffort },
 	};
+}
+
+async function runCodexSearch({ model, apiKey, accountId, query, purpose, thinkingEffort, timeoutMs, baseUrl }) {
+	const tokenAccountId = accountId || decodeJwtAccountId(apiKey);
+	if (!tokenAccountId) {
+		throw new Error("Could not determine ChatGPT account ID for openai-codex token.");
+	}
+
+	const body = buildCodexRequestBody({ model, query, purpose, thinkingEffort });
 
 	const endpoint = resolveCodexUrl(baseUrl);
 	const signal = typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
@@ -404,15 +441,23 @@ function buildAnthropicHeaders(apiKey) {
 	};
 }
 
-async function runAnthropicSearch({ model, apiKey, query, purpose, timeoutMs }) {
-	const body = {
+export function buildAnthropicRequestBody({ model, query, purpose, thinkingBudget }) {
+	if (thinkingBudget !== undefined && thinkingBudget >= ANTHROPIC_MAX_TOKENS) {
+		throw new Error(`--thinking-budget must be less than ${ANTHROPIC_MAX_TOKENS} for Anthropic.`);
+	}
+	return {
 		model,
-		max_tokens: 16000,
+		max_tokens: ANTHROPIC_MAX_TOKENS,
 		temperature: 0,
 		system: buildSystemPrompt(),
 		tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
 		messages: [{ role: "user", content: buildUserPrompt(query, purpose) }],
+		...(thinkingBudget === undefined ? {} : { thinking: { type: "enabled", budget_tokens: thinkingBudget } }),
 	};
+}
+
+async function runAnthropicSearch({ model, apiKey, query, purpose, thinkingBudget, timeoutMs }) {
+	const body = buildAnthropicRequestBody({ model, query, purpose, thinkingBudget });
 
 	const signal = typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
 
@@ -475,6 +520,7 @@ async function main() {
 					accountId,
 					query: args.query,
 					purpose: args.purpose,
+					thinkingEffort: args.thinkingEffort,
 					timeoutMs: args.timeoutMs,
 					baseUrl: model.baseUrl,
 			  })
@@ -483,6 +529,7 @@ async function main() {
 					apiKey,
 					query: args.query,
 					purpose: args.purpose,
+					thinkingBudget: args.thinkingBudget,
 					timeoutMs: args.timeoutMs,
 			  });
 

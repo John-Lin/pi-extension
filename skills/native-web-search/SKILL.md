@@ -30,6 +30,8 @@ Optional flags:
 
 - `--provider openai-codex|anthropic`
 - `--model <model-id>`
+- `--thinking <effort>` (OpenAI Codex only; default: `medium`)
+- `--thinking-budget <tokens>` (Anthropic only; `1024`–`15999`)
 - `--timeout <ms>`
 - `--json`
 
