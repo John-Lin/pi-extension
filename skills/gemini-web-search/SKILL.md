@@ -41,7 +41,7 @@ node search.mjs "browser HTTP/3 support" --json
 
 Optional flags:
 
-- `--model <id>` (default: `gemini-3.6-flash`; use `gemini-3.5-flash-lite` for lower latency)
+- `--model <id>` (default: `gemini-3.7-flash`; use `gemini-3.5-flash-lite` for lower latency)
 - `--thinking <level>` (default: `medium`; values: `minimal`, `low`, `medium`, `high`)
 - `--purpose <text>`
 - `--timeout <ms>`
@@ -62,6 +62,6 @@ It then appends a deduplicated `Citations` section from the response annotations
 
 - Citation URLs are Google redirect URLs that resolve to the real source on
   click; the `title` carries the source domain.
-- Use `gemini-3.6-flash` (default) or `gemini-3.5-flash-lite` (lower latency).
+- Use `gemini-3.7-flash` (default) or `gemini-3.5-flash-lite` (lower latency).
   A 429 means the search-grounding quota is exhausted — report it rather than
   switching to another model.

@@ -1,7 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { buildRequestBody, parseArgs } from "./search.mjs";
+import { buildRequestBody, parseArgs, usage } from "./search.mjs";
+
+const skillDir = dirname(fileURLToPath(import.meta.url));
+
+test("default model is gemini-3.7-flash in usage and SKILL.md", () => {
+	assert.match(usage(), /Default model: gemini-3\.7-flash/);
+	const skillInstructions = readFileSync(join(skillDir, "SKILL.md"), "utf8");
+	assert.match(skillInstructions, /`gemini-3\.7-flash`/);
+	assert.doesNotMatch(skillInstructions, /gemini-3\.6-flash/);
+});
 
 test("parseArgs defaults thinking level to medium and accepts an override", () => {
 	assert.equal(parseArgs(["q"]).thinkingLevel, "medium");

@@ -21,9 +21,9 @@ const AUTH_HEADER = "x-goog-api-key";
 // provider for Google AI is called "google".
 const PI_AUTH_PROVIDER = "google";
 
-// Only gemini-3.6-flash (default) and gemini-3.5-flash-lite (lower latency)
+// Only gemini-3.7-flash (default) and gemini-3.5-flash-lite (lower latency)
 // are supported here; both do google_search grounding.
-const DEFAULT_MODEL = "gemini-3.6-flash";
+const DEFAULT_MODEL = "gemini-3.7-flash";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
 
