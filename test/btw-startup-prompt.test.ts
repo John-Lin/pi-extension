@@ -277,6 +277,57 @@ test("btw resolves compacted session context before asking the follow-up questio
 	}
 });
 
+test("btw sends requests to the base URL resolved by provider auth", async () => {
+	const faux = registerFauxProvider({
+		models: [{ id: "btw-test-model" }],
+		tokensPerSecond: 0,
+		tokenSize: { min: 32, max: 32 },
+	});
+	let requestBaseUrl: string | undefined;
+	faux.setResponses([
+		(_context, _options, _state, model) => {
+			requestBaseUrl = model.baseUrl;
+			return fauxAssistantMessage("Resolved endpoint works");
+		},
+	]);
+
+	try {
+		const pi = createExtensionStub();
+		btwExtension(pi as never);
+		const command = pi.commands.get("btw");
+		assert.ok(command);
+
+		const selectedModel = {
+			...faux.getModel(),
+			baseUrl: "https://api.individual.githubcopilot.com",
+		};
+		const sessionManager = SessionManager.inMemory(process.cwd());
+		sessionManager.appendMessage(createUserTextMessage("What changed?"));
+		const uiHarness = createUiHarness();
+
+		await command?.handler("Can you summarize this?", {
+			hasUI: true,
+			model: selectedModel,
+			modelRegistry: {
+				async getApiKeyAndHeaders() {
+					return {
+						ok: true,
+						apiKey: "fake-key",
+						baseUrl: "https://api.business.githubcopilot.com",
+					};
+				},
+			},
+			sessionManager,
+			ui: uiHarness.ui,
+		});
+
+		assert.equal(requestBaseUrl, "https://api.business.githubcopilot.com");
+		assert.match(uiHarness.rendered, /Resolved endpoint works/);
+	} finally {
+		faux.unregister();
+	}
+});
+
 test("btw accepts request auth that only provides headers", async () => {
 	const faux = registerFauxProvider({
 		models: [{ id: "btw-test-model" }],
