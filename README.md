@@ -11,11 +11,6 @@ extensions/
   btw/
     index.ts
     panel.ts
-  split-fork/
-    index.ts
-    count-osascript.ts
-    layout.ts
-    osascript.ts
   plan-mode/
     index.ts
     utils.ts
