@@ -112,12 +112,14 @@ async function streamBtwAnswer(
 	panel: BtwBottomOverlay,
 	ctx: ExtensionCommandContext,
 	question: string,
-	apiKey: string | undefined,
-	headers: Record<string, string> | undefined,
+	apiKey: BtwStreamOptions["apiKey"],
+	headers: BtwStreamOptions["headers"],
+	baseUrl: string | undefined,
 ): Promise<void> {
 	const { messages, thinkingLevel } = buildBtwMessages(ctx, question);
+	const requestModel = baseUrl ? { ...ctx.model!, baseUrl } : ctx.model!;
 	const answerStream = streamSimple(
-		ctx.model!,
+		requestModel,
 		{
 			systemPrompt: resolveBtwSystemPrompt(ctx),
 			messages,
@@ -200,7 +202,7 @@ export default function (pi: ExtensionAPI): void {
 			await ctx.ui.custom<void>(
 				(tui, theme, _keybindings, done) => {
 					const panel = new BtwBottomOverlay(tui, theme, prompt, done);
-					void streamBtwAnswer(panel, ctx, prompt, auth.apiKey, auth.headers).catch((error) => {
+					void streamBtwAnswer(panel, ctx, prompt, auth.apiKey, auth.headers, auth.baseUrl).catch((error) => {
 						if (panel.isClosed()) {
 							return;
 						}
