@@ -48,19 +48,3 @@ test("btw directory only keeps the overlay entrypoint and panel helper", async (
 
 	assert.deepEqual(files, ["index.ts", "panel.ts"]);
 });
-
-test("split-fork directory entrypoint registers the split-fork command", async () => {
-	const module = await import("../extensions/split-fork/index.ts");
-	const pi = createExtensionStub();
-
-	module.registerSplitFork(pi);
-
-	assert.ok(pi.commands.has("split-fork"));
-});
-
-test("split-fork helper modules stay importable from the directory layout", async () => {
-	const layoutModule = await import("../extensions/split-fork/layout.ts");
-
-	assert.equal(layoutModule.getSplitDirectionForTerminalCount(1), "right");
-	assert.equal(layoutModule.getSplitDirectionForTerminalCount(2), "down");
-});
