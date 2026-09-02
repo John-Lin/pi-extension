@@ -1,20 +1,25 @@
 #!/usr/bin/env node
 
-// Gemini place search via Google AI Studio's Google Maps grounding tool.
-// Shares auth, transport and text extraction with the other Gemini skills; see
-// ../lib/gemini-interactions.mjs.
+// Gemini place search via Google AI Studio called directly (no corporate
+// gateway). Talks to the Interactions REST API (/v1beta/interactions) with
+// Node's built-in fetch, so no SDK dependency is required.
+//
+// Credentials: GEMINI_API_KEY, or the "google" api_key entry in pi's
+// ~/.pi/agent/auth.json as a fallback. Sent as the x-goog-api-key header.
 
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-	AUTH_HEADER,
-	TOKEN_ENV,
-	createInteraction,
-	extractText,
-	parseTimeout,
-	resolveApiKey,
-	stepTypes,
-} from "../lib/gemini-interactions.mjs";
+export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const TOKEN_ENV = "GEMINI_API_KEY";
+const AUTH_HEADER = "x-goog-api-key";
+
+// Pi stores credentials in auth.json keyed by provider name. The built-in
+// provider for Google AI is called "google".
+const PI_AUTH_PROVIDER = "google";
 
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const DEFAULT_THINKING_LEVEL = "medium";
@@ -24,6 +29,13 @@ const DEFAULT_TIMEOUT_MS = 120000;
 // this suffix and, for review sources, starts with "Review of".
 const MAPS_TITLE_SUFFIX = " - Google Maps";
 const REVIEW_TITLE_PREFIX = "Review of ";
+
+function parseTimeout(raw, fallback) {
+	if (raw === undefined || raw === "") return fallback;
+	const ms = Number(raw);
+	if (!Number.isFinite(ms)) throw new Error(`--timeout expects a number of milliseconds, got '${raw}'.`);
+	return Math.max(1000, ms);
+}
 
 function parseCoordinate(raw, flag, limit) {
 	const value = Number(raw);
@@ -121,6 +133,66 @@ Examples:
   node search.mjs "best beef noodles near Taipei Main Station" --purpose "dinner plan" --json`;
 }
 
+export function buildAuthHeaders(apiKey) {
+	return { [AUTH_HEADER]: apiKey };
+}
+
+function getAgentDir() {
+	const configured = process.env.PI_CODING_AGENT_DIR;
+	if (!configured) return join(homedir(), ".pi", "agent");
+	if (configured === "~") return homedir();
+	if (configured.startsWith("~/")) return join(homedir(), configured.slice(2));
+	return configured;
+}
+
+// Pi config values may be a literal key, the name of an env var, or a
+// "!command" to run for the value.
+function resolveConfigValue(value, env) {
+	if (typeof value !== "string" || !value) return undefined;
+	if (value.startsWith("!")) {
+		try {
+			const out = execSync(value.slice(1), {
+				encoding: "utf8",
+				timeout: 10000,
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim();
+			return out || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+	return env[value] || value;
+}
+
+export function resolveApiKey(env = process.env, authPath = join(getAgentDir(), "auth.json")) {
+	const fromEnv = env[TOKEN_ENV];
+	if (fromEnv) {
+		return { apiKey: fromEnv, source: `env:${TOKEN_ENV}` };
+	}
+
+	if (existsSync(authPath)) {
+		let data;
+		try {
+			data = JSON.parse(readFileSync(authPath, "utf8"));
+		} catch (err) {
+			// A corrupt file is a different problem from a missing key; reporting it
+			// as "no credentials" would send the reader off to re-authenticate for
+			// nothing.
+			throw new Error(`Could not parse ${authPath}: ${err?.message || err}`);
+		}
+		const entry = data?.[PI_AUTH_PROVIDER];
+		const type = entry?.type || (entry?.key ? "api_key" : undefined);
+		if (type === "api_key") {
+			const key = resolveConfigValue(entry.key, env);
+			if (key) return { apiKey: key, source: `auth.json:${PI_AUTH_PROVIDER}` };
+		}
+	}
+
+	throw new Error(
+		`No credentials found. Set ${TOKEN_ENV}, or add a '${PI_AUTH_PROVIDER}' api_key entry to ${authPath}.`,
+	);
+}
+
 export function buildPrompt(query, purpose) {
 	return [
 		"You are a local guide. Use the google_maps tool to ground every place you",
@@ -159,6 +231,25 @@ export function buildRequestBody({
 		tools: [maps],
 		generation_config: { thinking_level: thinkingLevel },
 	};
+}
+
+export function extractText(interaction) {
+	if (typeof interaction?.output_text === "string" && interaction.output_text) {
+		return interaction.output_text;
+	}
+	if (typeof interaction?.outputText === "string" && interaction.outputText) {
+		return interaction.outputText;
+	}
+	const parts = [];
+	for (const step of interaction?.steps || []) {
+		if (step?.type !== "model_output") continue;
+		for (const block of step.content || []) {
+			if (block?.type === "text" && typeof block.text === "string") {
+				parts.push(block.text);
+			}
+		}
+	}
+	return parts.join("\n\n").trim();
 }
 
 // One place is cited many times over, and its review pages are cited as
@@ -243,20 +334,37 @@ async function main() {
 
 	const model = args.model || DEFAULT_MODEL;
 
+	const signal =
+		typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
+
 	let interaction;
 	try {
-		interaction = await createInteraction({
-			body: buildRequestBody({
-				model,
-				query: args.query,
-				purpose: args.purpose,
-				latitude: args.latitude,
-				longitude: args.longitude,
-				thinkingLevel: args.thinkingLevel,
-			}),
-			apiKey,
-			timeoutMs: args.timeoutMs,
+		const res = await fetch(INTERACTIONS_URL, {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				accept: "application/json",
+				...buildAuthHeaders(apiKey),
+			},
+			body: JSON.stringify(
+				buildRequestBody({
+					model,
+					query: args.query,
+					purpose: args.purpose,
+					latitude: args.latitude,
+					longitude: args.longitude,
+					thinkingLevel: args.thinkingLevel,
+				}),
+			),
+			signal,
 		});
+		const payload = await res.text();
+		if (!res.ok) {
+			console.error(`Error: Interactions request failed (${res.status})`);
+			console.error(`Body: ${payload}`);
+			process.exit(1);
+		}
+		interaction = JSON.parse(payload);
 	} catch (err) {
 		console.error(`Error: ${err?.message || String(err)}`);
 		process.exit(1);
@@ -264,7 +372,7 @@ async function main() {
 
 	const text = extractText(interaction);
 	const places = extractPlaces(interaction);
-	const steps = stepTypes(interaction);
+	const steps = (interaction?.steps || []).map((s) => s?.type).filter(Boolean);
 
 	if (args.json) {
 		console.log(

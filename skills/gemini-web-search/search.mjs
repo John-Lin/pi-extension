@@ -1,26 +1,38 @@
 #!/usr/bin/env node
 
-// Gemini web search via Google AI Studio's Google Search grounding tool.
-// Shares auth, transport and text extraction with the other Gemini skills; see
-// ../lib/gemini-interactions.mjs.
+// Gemini web search via Google AI Studio called directly (no corporate
+// gateway). Talks to the Interactions REST API (/v1beta/interactions) with
+// Node's built-in fetch, so no SDK dependency is required.
+//
+// Credentials: GEMINI_API_KEY, or the "google" api_key entry in pi's
+// ~/.pi/agent/auth.json as a fallback. Sent as the x-goog-api-key header.
 
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-	AUTH_HEADER,
-	TOKEN_ENV,
-	createInteraction,
-	extractText,
-	parseTimeout,
-	resolveApiKey,
-	stepTypes,
-} from "../lib/gemini-interactions.mjs";
+export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const TOKEN_ENV = "GEMINI_API_KEY";
+const AUTH_HEADER = "x-goog-api-key";
+
+// Pi stores credentials in auth.json keyed by provider name. The built-in
+// provider for Google AI is called "google".
+const PI_AUTH_PROVIDER = "google";
 
 // Only gemini-3.8-flash (default) and gemini-3.5-flash-lite (lower latency)
 // are supported here; both do google_search grounding.
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
+
+function parseTimeout(raw, fallback) {
+	if (raw === undefined || raw === "") return fallback;
+	const ms = Number(raw);
+	if (!Number.isFinite(ms)) throw new Error(`--timeout expects a number of milliseconds, got '${raw}'.`);
+	return Math.max(1000, ms);
+}
 
 export function parseArgs(argv) {
 	const out = {
@@ -85,6 +97,66 @@ Examples:
   node search.mjs "vite 7 breaking changes" --json`;
 }
 
+export function buildAuthHeaders(apiKey) {
+	return { [AUTH_HEADER]: apiKey };
+}
+
+function getAgentDir() {
+	const configured = process.env.PI_CODING_AGENT_DIR;
+	if (!configured) return join(homedir(), ".pi", "agent");
+	if (configured === "~") return homedir();
+	if (configured.startsWith("~/")) return join(homedir(), configured.slice(2));
+	return configured;
+}
+
+// Pi config values may be a literal key, the name of an env var, or a
+// "!command" to run for the value.
+function resolveConfigValue(value, env) {
+	if (typeof value !== "string" || !value) return undefined;
+	if (value.startsWith("!")) {
+		try {
+			const out = execSync(value.slice(1), {
+				encoding: "utf8",
+				timeout: 10000,
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim();
+			return out || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+	return env[value] || value;
+}
+
+export function resolveApiKey(env = process.env, authPath = join(getAgentDir(), "auth.json")) {
+	const fromEnv = env[TOKEN_ENV];
+	if (fromEnv) {
+		return { apiKey: fromEnv, source: `env:${TOKEN_ENV}` };
+	}
+
+	if (existsSync(authPath)) {
+		let data;
+		try {
+			data = JSON.parse(readFileSync(authPath, "utf8"));
+		} catch (err) {
+			// A corrupt file is a different problem from a missing key; reporting it
+			// as "no credentials" would send the reader off to re-authenticate for
+			// nothing.
+			throw new Error(`Could not parse ${authPath}: ${err?.message || err}`);
+		}
+		const entry = data?.[PI_AUTH_PROVIDER];
+		const type = entry?.type || (entry?.key ? "api_key" : undefined);
+		if (type === "api_key") {
+			const key = resolveConfigValue(entry.key, env);
+			if (key) return { apiKey: key, source: `auth.json:${PI_AUTH_PROVIDER}` };
+		}
+	}
+
+	throw new Error(
+		`No credentials found. Set ${TOKEN_ENV}, or add a '${PI_AUTH_PROVIDER}' api_key entry to ${authPath}.`,
+	);
+}
+
 export function buildPrompt(query, purpose) {
 	return [
 		"You are a fast web research assistant. Use the google_search tool to find",
@@ -107,10 +179,30 @@ export function buildRequestBody({ model, query, purpose, thinkingLevel = DEFAUL
 		model,
 		input: buildPrompt(query, purpose),
 		// Interactions API tool spec: {type:"google_search"} (NOT the legacy
-		// generateContent {googleSearch:{}}).
+		// generateContent {googleSearch:{}}). google_search and google_maps
+		// cannot be combined in a single request.
 		tools: [{ type: "google_search" }],
 		generation_config: { thinking_level: thinkingLevel },
 	};
+}
+
+export function extractText(interaction) {
+	if (typeof interaction?.output_text === "string" && interaction.output_text) {
+		return interaction.output_text;
+	}
+	if (typeof interaction?.outputText === "string" && interaction.outputText) {
+		return interaction.outputText;
+	}
+	const parts = [];
+	for (const step of interaction?.steps || []) {
+		if (step?.type !== "model_output") continue;
+		for (const block of step.content || []) {
+			if (block?.type === "text" && typeof block.text === "string") {
+				parts.push(block.text);
+			}
+		}
+	}
+	return parts.join("\n\n").trim();
 }
 
 export function extractCitations(interaction) {
@@ -137,13 +229,13 @@ export function extractCitations(interaction) {
 	return Array.from(seen.values());
 }
 
-function formatHuman({ model, source, query, purpose, text, citations, steps, showRaw }) {
+function formatHuman({ model, source, query, purpose, text, citations, stepTypes, showRaw }) {
 	const lines = [];
 	lines.push(`Model: ${model} (auth: ${source})`);
 	lines.push(`Query: ${query}`);
 	lines.push(`Purpose: ${purpose}`);
 	if (showRaw) {
-		lines.push(`Steps: ${steps.join(" -> ") || "(none)"}`);
+		lines.push(`Steps: ${stepTypes.join(" -> ") || "(none)"}`);
 	}
 	lines.push("");
 	lines.push(text || "(empty response)");
@@ -175,18 +267,35 @@ async function main() {
 
 	const model = args.model || DEFAULT_MODEL;
 
+	const signal =
+		typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
+
 	let interaction;
 	try {
-		interaction = await createInteraction({
-			body: buildRequestBody({
-				model,
-				query: args.query,
-				purpose: args.purpose,
-				thinkingLevel: args.thinkingLevel,
-			}),
-			apiKey,
-			timeoutMs: args.timeoutMs,
+		const res = await fetch(INTERACTIONS_URL, {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				accept: "application/json",
+				...buildAuthHeaders(apiKey),
+			},
+			body: JSON.stringify(
+				buildRequestBody({
+					model,
+					query: args.query,
+					purpose: args.purpose,
+					thinkingLevel: args.thinkingLevel,
+				}),
+			),
+			signal,
 		});
+		const payload = await res.text();
+		if (!res.ok) {
+			console.error(`Error: Interactions request failed (${res.status})`);
+			console.error(`Body: ${payload}`);
+			process.exit(1);
+		}
+		interaction = JSON.parse(payload);
 	} catch (err) {
 		console.error(`Error: ${err?.message || String(err)}`);
 		process.exit(1);
@@ -194,11 +303,15 @@ async function main() {
 
 	const text = extractText(interaction);
 	const citations = extractCitations(interaction);
-	const steps = stepTypes(interaction);
+	const stepTypes = (interaction?.steps || []).map((s) => s?.type).filter(Boolean);
 
 	if (args.json) {
 		console.log(
-			JSON.stringify({ model, source, query: args.query, purpose: args.purpose, text, citations, steps }, null, 2),
+			JSON.stringify(
+				{ model, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
+				null,
+				2,
+			),
 		);
 		return;
 	}
@@ -211,7 +324,7 @@ async function main() {
 			purpose: args.purpose,
 			text,
 			citations,
-			steps,
+			stepTypes,
 			showRaw: args.raw,
 		}),
 	);
