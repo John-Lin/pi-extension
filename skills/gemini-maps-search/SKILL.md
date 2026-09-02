@@ -72,6 +72,11 @@ It then appends a `Places` section deduplicated by `place_id`.
 - Citations arrive as `place_citation` annotations. One place is cited many
   times and its review pages are cited separately under the same `place_id`;
   the script collapses those into one entry and prefers the place's own link.
+- `gemini-3.5-flash-lite` answers about twice as fast but follows constraints
+  less well: asked for a cafe "open now" near midnight it made one Maps call
+  and returned three cafes that had already closed, where the default model
+  made four calls and returned places open until 2-4 AM. Prefer the default
+  unless latency matters more than accuracy.
 - Google documents Maps grounding as **English only**. Chinese prompts do work
   in practice and answer in Chinese, but that is unsupported behaviour — fall
   back to English if results look wrong.
