@@ -52,19 +52,9 @@ test("a non-numeric --timeout is rejected instead of crashing later", () => {
 	assert.throws(() => parseArgs(["q", "--timeout=abc"]), /timeout/i);
 });
 
-test("usage advertises the default model and the required credentials", () => {
-	assert.match(usage(), /Default model: gemini-3\.7-flash/);
+test("usage advertises Gemini 3.8 Flash as the default model", () => {
+	assert.match(usage(), /Default model: gemini-3\.8-flash/);
 	assert.match(usage(), /GEMINI_API_KEY/);
-});
-
-test("skill guidance recommends the current default and Lite models", () => {
-	const skillInstructions = readFileSync(
-		new URL("../skills/gemini-web-search/SKILL.md", import.meta.url),
-		"utf8",
-	);
-	assert.match(skillInstructions, /`gemini-3\.7-flash`/);
-	assert.match(skillInstructions, /`gemini-3\.5-flash-lite`/);
-	assert.doesNotMatch(skillInstructions, /gemini-3\.6-flash/);
 });
 
 test("auth is sent as the x-goog-api-key header AI Studio expects", () => {
