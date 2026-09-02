@@ -1,0 +1,169 @@
+{
+  "id": "v1_ChdWazZZYXNqRUY0YUcxZThQeWF2ZHFBURIXVms2WWFzakVGNGFHMWU4UHlhdmRxQVE",
+  "status": "completed",
+  "usage": {
+    "total_tokens": 911,
+    "total_input_tokens": 94,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 94
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 355,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 462,
+    "grounding_tool_count": [
+      {
+        "type": "google_maps",
+        "count": 1
+      }
+    ]
+  },
+  "created": "2026-09-02T16:27:02Z",
+  "updated": "2026-09-02T16:27:02Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "id": "call_1412869",
+      "signature": "<redacted>",
+      "type": "google_maps_call",
+      "arguments": {
+        "queries": [
+          "coffee shop near me"
+        ]
+      }
+    },
+    {
+      "call_id": "call_1412869",
+      "signature": "<redacted>",
+      "type": "google_maps_result",
+      "result": [
+        {
+          "places": [
+            {
+              "place_id": "ChIJbXITl4OrQjQR3XJqpKT5DYM",
+              "name": "Fake Sober Taipei - Google Maps",
+              "url": "https://maps.google.com/maps?cid=9443478479194190557"
+            },
+            {
+              "place_id": "ChIJ5wjr-kOrQjQRywNx6Nd-ETs",
+              "name": "Sleep No More Café - Google Maps",
+              "url": "https://maps.google.com/maps?cid=4256322588624618443"
+            },
+            {
+              "place_id": "ChIJP5CF7pmrQjQRY1MyLg_GRrw",
+              "name": "Simple Kaffa - Google Maps",
+              "url": "https://maps.google.com/maps?cid=13566748696002057059"
+            },
+            {
+              "place_id": "ChIJP5CF7pmrQjQRY1MyLg_GRrw",
+              "name": "Review of Simple Kaffa - Google Maps",
+              "url": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sChZDSUhNMG9nS0VJQ0FnSUQ3anUtM2JnEAE!2m1!1s0x3442ab99ee85903f:0xbc46c60f2e325363"
+            },
+            {
+              "place_id": "ChIJP5CF7pmrQjQRY1MyLg_GRrw",
+              "name": "Review of Simple Kaffa - Google Maps",
+              "url": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT21KUFJtSlFNSGxzVFhKcFJtbE9hV1JXT0RCeU9GRRAB!2m1!1s0x3442ab99ee85903f:0xbc46c60f2e325363"
+            },
+            {
+              "place_id": "ChIJP5CF7pmrQjQRY1MyLg_GRrw",
+              "name": "Review of Simple Kaffa - Google Maps",
+              "url": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sChZDSUhNMG9nS0VJQ0FnSUNiNXU2ZEN3EAE!2m1!1s0x3442ab99ee85903f:0xbc46c60f2e325363"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "signature": "<redacted>",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "Here are two great coffee shops within easy walking distance in the Xinyi area:\n\n---\n\n### 1. **Fake Sober Taipei**\n* **Address:** No. 20, Songshou Rd, Xinyi District, Taipei City\n* **Why go:** \n  * **Vibrant, relaxed vibe:** A popular, stylish open-air venue right along Songshou Road that operates as a cafe by day and a craft beer bar by night.\n  * **Creative drinks & quick bites:** Known for well-crafted specialty coffee drinks (such as their signature cloud coffee and Sicilian lemon espresso), alongside fresh salt bread and snacks. It is an easy, casual spot to grab a seat and people-watch.\n\n---\n\n### 2. **Fika Fika Cafe (Far Eastern Xinyi A13)**\n* **Address:** B3, No. 58, Songren Rd, Xinyi District, Taipei City\n* **Why go:** \n  * **World-class specialty coffee:** Founded by a Nordic Barista Cup champion, Fika Fika is celebrated for its meticulous light-roast espresso and clean pour-over brews.\n  * **Calm atmosphere & desserts:** Situated on the basement level of Far Eastern A13, it offers a quieter, Scandinavian-style sanctuary from the busy streets. It's a great spot if you want to pair top-tier coffee with artisanal pastries like their popular cinnamon rolls or honey lattes.",
+          "annotations": [
+            {
+              "start_index": 134,
+              "end_index": 178,
+              "place_id": "ChIJbXITl4OrQjQR3XJqpKT5DYM",
+              "name": "Fake Sober Taipei - Google Maps",
+              "url": "https://maps.google.com/maps?cid=9443478479194190557",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 134,
+              "end_index": 345,
+              "place_id": "ChIJbXITl4OrQjQR3XJqpKT5DYM",
+              "name": "Fake Sober Taipei - Google Maps",
+              "url": "https://maps.google.com/maps?cid=9443478479194190557",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 349,
+              "end_index": 538,
+              "place_id": "ChIJbXITl4OrQjQR3XJqpKT5DYM",
+              "name": "Fake Sober Taipei - Google Maps",
+              "url": "https://maps.google.com/maps?cid=9443478479194190557",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 540,
+              "end_index": 598,
+              "place_id": "ChIJbXITl4OrQjQR3XJqpKT5DYM",
+              "name": "Fake Sober Taipei - Google Maps",
+              "url": "https://maps.google.com/maps?cid=9443478479194190557",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 679,
+              "end_index": 722,
+              "place_id": "ChIJCdBOMP6rQjQRPExzFfbBQ9k",
+              "name": "Fika Fika Cafe A13 - Google Maps",
+              "url": "https://maps.google.com/maps?cid=15655569992335969340",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 679,
+              "end_index": 907,
+              "place_id": "ChIJCdBOMP6rQjQRPExzFfbBQ9k",
+              "name": "Fika Fika Cafe A13 - Google Maps",
+              "url": "https://maps.google.com/maps?cid=15655569992335969340",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 911,
+              "end_index": 1067,
+              "place_id": "ChIJCdBOMP6rQjQRPExzFfbBQ9k",
+              "name": "Fika Fika Cafe A13 - Google Maps",
+              "url": "https://maps.google.com/maps?cid=15655569992335969340",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 1069,
+              "end_index": 1196,
+              "place_id": "ChIJCdBOMP6rQjQRPExzFfbBQ9k",
+              "name": "Fika Fika Cafe A13 - Google Maps",
+              "url": "https://maps.google.com/maps?cid=15655569992335969340",
+              "type": "place_citation"
+            },
+            {
+              "start_index": 1069,
+              "end_index": 1196,
+              "place_id": "ChIJCdBOMP6rQjQRPExzFfbBQ9k",
+              "name": "Review of Fika Fika Cafe A13 - Google Maps",
+              "url": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sChZDSUhNMG9nS0VJQ0FnSURHMzhLWmJREAE!2m1!1s0x3442abfe304ed009:0xd943c1f615734c3c",
+              "type": "place_citation"
+            }
+          ],
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-3.8-flash"
+}

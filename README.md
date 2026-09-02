@@ -16,6 +16,12 @@ extensions/
     utils.ts
     README.md
 skills/
+  lib/
+    gemini-interactions.mjs
+  gemini-maps-search/
+    SKILL.md
+    search.mjs
+    fixtures/
   gemini-web-search/
     SKILL.md
     search.mjs
