@@ -36,7 +36,7 @@ function parseTimeout(raw, fallback) {
 export function parseArgs(argv) {
 	const out = {
 		model: undefined,
-		purpose: "general research support",
+		purpose: undefined,
 		thinkingLevel: DEFAULT_THINKING_LEVEL,
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		json: false,
@@ -167,8 +167,9 @@ export function buildPrompt(query, purpose) {
 		"",
 		`Search the internet for: ${query}`,
 		"",
-		`Purpose: ${purpose}`,
-		"",
+		// A purpose the caller never stated would steer the summary on a guess,
+		// so an absent one is left absent rather than invented.
+		...(purpose ? [`Purpose: ${purpose}`, ""] : []),
 		"Return a concise research summary with:",
 		"- 3 to 7 key findings",
 		"- for every finding: why it matters for this purpose, with an inline citation",
@@ -236,7 +237,7 @@ function formatHuman({ model, source, query, purpose, text, citations, stepTypes
 	const lines = [];
 	lines.push(`Model: ${model} (auth: ${source})`);
 	lines.push(`Query: ${query}`);
-	lines.push(`Purpose: ${purpose}`);
+	if (purpose) lines.push(`Purpose: ${purpose}`);
 	if (showRaw) {
 		lines.push(`Steps: ${stepTypes.join(" -> ") || "(none)"}`);
 	}

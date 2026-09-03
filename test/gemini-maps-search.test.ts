@@ -65,7 +65,7 @@ test("a malformed auth.json is reported as malformed, not as missing credentials
 test("parseArgs collects the query and defaults", () => {
 	const a = parseArgs(["italian", "restaurants", "nearby"]);
 	assert.equal(a.query, "italian restaurants nearby");
-	assert.equal(a.purpose, "general place research");
+	assert.equal(a.purpose, undefined);
 	assert.equal(a.latitude, undefined);
 	assert.equal(a.longitude, undefined);
 	assert.equal(a.json, false);
@@ -101,6 +101,17 @@ test("a coordinate given on its own is rejected, since the API needs the pair", 
 test("usage advertises Gemini 3.8 Flash as the default model", () => {
 	assert.match(usage(), /Default model: gemini-3\.8-flash/);
 	assert.match(usage(), /GEMINI_API_KEY/);
+});
+
+test("buildPrompt leaves the purpose out entirely when none was given", () => {
+	const p = buildPrompt("best ramen", undefined);
+	assert.ok(p.includes("best ramen"));
+	assert.ok(!/Purpose/.test(p));
+});
+
+test("buildRequestBody without a purpose sends a prompt that claims none", () => {
+	const body = buildRequestBody({ model: "gemini-3.8-flash", query: "best ramen" });
+	assert.ok(!/Purpose/.test(body.input));
 });
 
 test("buildPrompt carries the query and purpose", () => {

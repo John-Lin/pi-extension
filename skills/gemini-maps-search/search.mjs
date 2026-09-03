@@ -51,7 +51,7 @@ function parseCoordinate(raw, flag, limit) {
 export function parseArgs(argv) {
 	const out = {
 		model: undefined,
-		purpose: "general place research",
+		purpose: undefined,
 		thinkingLevel: DEFAULT_THINKING_LEVEL,
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		latitude: undefined,
@@ -202,8 +202,9 @@ export function buildPrompt(query, purpose) {
 		"",
 		`Find places for: ${query}`,
 		"",
-		`Purpose: ${purpose}`,
-		"",
+		// A purpose the caller never stated would be the model's only clue about
+		// what "fits", so an absent one is left absent rather than invented.
+		...(purpose ? [`Purpose: ${purpose}`, ""] : []),
 		"Return a concise shortlist with:",
 		"- 2 to 5 places, best first",
 		"- for each: name, address, and what makes it fit this purpose",
@@ -295,7 +296,7 @@ function formatHuman({ model, source, query, purpose, latitude, longitude, text,
 	const lines = [];
 	lines.push(`Model: ${model} (auth: ${source})`);
 	lines.push(`Query: ${query}`);
-	lines.push(`Purpose: ${purpose}`);
+	if (purpose) lines.push(`Purpose: ${purpose}`);
 	lines.push(`Location: ${latitude !== undefined ? `${latitude}, ${longitude}` : "(none, resolved from the query)"}`);
 	if (showRaw) {
 		lines.push(`Steps: ${steps.join(" -> ") || "(none)"}`);
