@@ -15,11 +15,8 @@ research still belongs in `gemini-web-search`.
 
 ## Setup
 
-No npm install required (uses Node built-in `fetch`). Credentials, first match
-wins:
-
-1. `GEMINI_API_KEY` env var
-2. the `google` api_key entry in `~/.pi/agent/auth.json`
+No npm install required (uses Node built-in `fetch`). Needs a Gemini API key —
+`GEMINI_API_KEY`, or the `google` api_key entry in pi's `~/.pi/agent/auth.json`.
 
 ## Usage
 
