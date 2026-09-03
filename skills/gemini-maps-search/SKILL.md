@@ -1,73 +1,38 @@
 ---
 name: gemini-maps-search
-description: "Place and location search backed by Google Maps grounding (via Gemini on Google AI Studio, called directly with a personal API key). Use when the question is about real places — restaurants, shops, opening hours, what is near a location — rather than web pages."
+description: "Place search grounded in Google Maps. Use for questions about real places — what is good nearby, whether somewhere is open, what sits near a location — rather than web pages."
 ---
 
 # Gemini Maps Search
 
 Run a **Gemini model with the `google_maps` grounding tool** against Google
-AI Studio directly (no corporate gateway) and get a shortlist of real places
-with a deduplicated Places section of Google Maps links.
-
-Use this instead of `gemini-web-search` when the answer is a *place*: what to
-eat nearby, which shop is open, what is around a set of coordinates. Web-page
-research still belongs in `gemini-web-search`.
+AI Studio and get a shortlist of real places with a deduplicated Places
+section of Google Maps links.
 
 ## Setup
 
-No npm install required (uses Node built-in `fetch`). Credentials, first match
-wins:
-
-1. `GEMINI_API_KEY` env var
-2. the `google` api_key entry in `~/.pi/agent/auth.json` (override the
-   directory with `PI_CODING_AGENT_DIR`)
-
-The key is sent as the `x-goog-api-key` header.
-
-## Script
-
-- `search.mjs`
+No npm install required (uses Node built-in `fetch`). Needs a Gemini API key —
+`GEMINI_API_KEY`, or the `google` api_key entry in pi's `~/.pi/agent/auth.json`.
 
 ## Usage
 
-Run from the skill directory:
+Run from the skill directory. `node search.mjs` with no arguments prints every
+flag, default and example.
 
 ```bash
 node search.mjs "<what to find>" [--lat <deg> --lng <deg>] --purpose "<why you need this>"
 ```
 
-Examples:
-
-```bash
-node search.mjs "coffee shops within a 10 minute walk" --lat 25.033964 --lng 121.564468
-node search.mjs "best beef noodles near Taipei Main Station" --purpose "dinner plan"
-```
-
-Optional flags:
-
-- `--lat <deg>` / `--lng <deg>` — anchor point for "near me" style questions.
-  Both or neither; a lone coordinate is rejected.
-- `--model <id>` (default: `gemini-3.8-flash`)
-- `--thinking <level>` (default: `medium`; values: `minimal`, `low`, `medium`, `high`)
-- `--purpose <text>`
-- `--timeout <ms>`
-- `--json`
-- `--raw` (also print the raw step-type sequence)
-
-## Output expectations
-
-The script instructs the model to:
-- ground every place in the `google_maps` tool rather than inventing one
-- return 2 to 5 places, best first, with name, address and why it fits
-- include opening hours, rating or price level when the tool reports them
-- say so explicitly when nothing fits
-
-It then appends a `Places` section deduplicated by `place_id`.
+- **Always pass `--purpose`.** It decides which places come back, not just how
+  they are described: the same query answered for "entertaining a client"
+  returns kappo and omakase counters, and for "quick meal before a train"
+  returns donburi and ramen chains.
+- **Coordinates only steer "near me" questions.** Without them the model
+  resolves the area from the query text, so name the area ("near Taipei Main
+  Station") whenever you omit them.
 
 ## Notes
 
-- Coordinates are optional. Without them the model resolves the area from the
-  query text, so name the area ("near Taipei Main Station") when you omit them.
 - `gemini-3.5-flash-lite` answers about twice as fast but follows constraints
   less well; prefer the default unless latency matters more than accuracy.
 - Google documents Maps grounding as **English only**. Chinese prompts do work

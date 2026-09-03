@@ -51,7 +51,7 @@ function parseCoordinate(raw, flag, limit) {
 export function parseArgs(argv) {
 	const out = {
 		model: undefined,
-		purpose: "general place research",
+		purpose: undefined,
 		thinkingLevel: DEFAULT_THINKING_LEVEL,
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		latitude: undefined,
@@ -117,16 +117,18 @@ export function usage() {
 	return `Usage:
   node search.mjs "<query>" [--lat <deg> --lng <deg>] [--purpose "<why>"] [--model <id>] [--thinking <level>] [--timeout <ms>] [--json] [--raw]
 
-Coordinates are optional: without them the model resolves place names from the
-query itself, so name the area ("near Taipei Main Station") when you omit them.
+Flags:
+  --lat/--lng   Anchor point for "near me" questions. Both or neither.
+  --purpose     Why you need the places; steers which ones are picked.
+  --model       Default model: ${DEFAULT_MODEL}.
+  --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
+  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
+  --json        Print the result as JSON instead of text.
+  --raw         Also print the interaction's step-type sequence.
 
-Thinking level: defaults to ${DEFAULT_THINKING_LEVEL}.
-
-Calls Google AI Studio directly. Credentials (first match wins):
+Credentials (first match wins):
   ${TOKEN_ENV}   API key, sent as the "${AUTH_HEADER}" header.
-  ~/.pi/agent/auth.json "google" api_key entry (fallback).
-
-Default model: ${DEFAULT_MODEL} (override with --model).
+  ~/.pi/agent/auth.json "${PI_AUTH_PROVIDER}" api_key entry (fallback).
 
 Examples:
   node search.mjs "coffee shops within a 10 minute walk" --lat 25.033964 --lng 121.564468
@@ -200,8 +202,9 @@ export function buildPrompt(query, purpose) {
 		"",
 		`Find places for: ${query}`,
 		"",
-		`Purpose: ${purpose}`,
-		"",
+		// A purpose the caller never stated would be the model's only clue about
+		// what "fits", so an absent one is left absent rather than invented.
+		...(purpose ? [`Purpose: ${purpose}`, ""] : []),
 		"Return a concise shortlist with:",
 		"- 2 to 5 places, best first",
 		"- for each: name, address, and what makes it fit this purpose",
@@ -293,7 +296,7 @@ function formatHuman({ model, source, query, purpose, latitude, longitude, text,
 	const lines = [];
 	lines.push(`Model: ${model} (auth: ${source})`);
 	lines.push(`Query: ${query}`);
-	lines.push(`Purpose: ${purpose}`);
+	if (purpose) lines.push(`Purpose: ${purpose}`);
 	lines.push(`Location: ${latitude !== undefined ? `${latitude}, ${longitude}` : "(none, resolved from the query)"}`);
 	if (showRaw) {
 		lines.push(`Steps: ${steps.join(" -> ") || "(none)"}`);

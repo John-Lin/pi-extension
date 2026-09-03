@@ -34,7 +34,7 @@ test("the endpoint is Google AI Studio directly, not a gateway", () => {
 test("parseArgs collects the query and defaults", () => {
 	const a = parseArgs(["latest", "node", "lts"]);
 	assert.equal(a.query, "latest node lts");
-	assert.equal(a.purpose, "general research support");
+	assert.equal(a.purpose, undefined);
 	assert.equal(a.json, false);
 	assert.equal(a.raw, false);
 	assert.equal(a.model, undefined);
@@ -87,6 +87,17 @@ test("missing credentials are reported with the env var to set", () => {
 test("a malformed auth.json is reported as malformed, not as missing credentials", () => {
 	const path = tempAuthFile("{ not json");
 	assert.throws(() => resolveApiKey({}, path), new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("buildPrompt leaves the purpose out entirely when none was given", () => {
+	const p = buildPrompt("vite 7 breaking changes", undefined);
+	assert.ok(p.includes("vite 7 breaking changes"));
+	assert.ok(!/Purpose/.test(p));
+});
+
+test("buildRequestBody without a purpose sends a prompt that claims none", () => {
+	const body = buildRequestBody({ model: "gemini-3.6-flash", query: "latest node lts" });
+	assert.ok(!/Purpose/.test(body.input));
 });
 
 test("buildPrompt carries the query and purpose", () => {
