@@ -1,13 +1,13 @@
 ---
 name: gemini-maps-search
-description: "Place and location search backed by Google Maps grounding (via Gemini on Google AI Studio, called directly with a personal API key). Use when the question is about real places — restaurants, shops, opening hours, what is near a location — rather than web pages."
+description: "Place and location search backed by Google Maps grounding. Use when the question is about real places — restaurants, shops, opening hours, what is near a location — rather than web pages."
 ---
 
 # Gemini Maps Search
 
 Run a **Gemini model with the `google_maps` grounding tool** against Google
-AI Studio directly (no corporate gateway) and get a shortlist of real places
-with a deduplicated Places section of Google Maps links.
+AI Studio and get a shortlist of real places with a deduplicated Places
+section of Google Maps links.
 
 Use this instead of `gemini-web-search` when the answer is a *place*: what to
 eat nearby, which shop is open, what is around a set of coordinates. Web-page
@@ -19,14 +19,7 @@ No npm install required (uses Node built-in `fetch`). Credentials, first match
 wins:
 
 1. `GEMINI_API_KEY` env var
-2. the `google` api_key entry in `~/.pi/agent/auth.json` (override the
-   directory with `PI_CODING_AGENT_DIR`)
-
-The key is sent as the `x-goog-api-key` header.
-
-## Script
-
-- `search.mjs`
+2. the `google` api_key entry in `~/.pi/agent/auth.json`
 
 ## Usage
 
