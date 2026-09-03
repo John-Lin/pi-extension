@@ -21,9 +21,8 @@ const AUTH_HEADER = "x-goog-api-key";
 // provider for Google AI is called "google".
 const PI_AUTH_PROVIDER = "google";
 
-// Only gemini-3.8-flash (default) and gemini-3.5-flash-lite (lower latency)
-// are supported here; both do google_search grounding.
 const DEFAULT_MODEL = "gemini-3.8-flash";
+const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
 
@@ -84,13 +83,17 @@ export function usage() {
 	return `Usage:
   node search.mjs "<query>" [--purpose "<why>"] [--model <id>] [--thinking <level>] [--timeout <ms>] [--json] [--raw]
 
-Thinking level: defaults to ${DEFAULT_THINKING_LEVEL}.
+Flags:
+  --purpose     Why you need the research; the summary is written for it.
+  --model       Default model: ${DEFAULT_MODEL} (${LOW_LATENCY_MODEL} for lower latency).
+  --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
+  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
+  --json        Print the result as JSON instead of text.
+  --raw         Also print the interaction's step-type sequence.
 
-Calls Google AI Studio directly. Credentials (first match wins):
+Credentials (first match wins):
   ${TOKEN_ENV}   API key, sent as the "${AUTH_HEADER}" header.
-  ~/.pi/agent/auth.json "google" api_key entry (fallback).
-
-Default model: ${DEFAULT_MODEL} (override with --model).
+  ~/.pi/agent/auth.json "${PI_AUTH_PROVIDER}" api_key entry (fallback).
 
 Examples:
   node search.mjs "latest python release" --purpose "update dependency notes"

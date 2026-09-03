@@ -117,16 +117,18 @@ export function usage() {
 	return `Usage:
   node search.mjs "<query>" [--lat <deg> --lng <deg>] [--purpose "<why>"] [--model <id>] [--thinking <level>] [--timeout <ms>] [--json] [--raw]
 
-Coordinates are optional: without them the model resolves place names from the
-query itself, so name the area ("near Taipei Main Station") when you omit them.
+Flags:
+  --lat/--lng   Anchor point for "near me" questions. Both or neither.
+  --purpose     Why you need the places; steers which ones are picked.
+  --model       Default model: ${DEFAULT_MODEL}.
+  --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
+  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
+  --json        Print the result as JSON instead of text.
+  --raw         Also print the interaction's step-type sequence.
 
-Thinking level: defaults to ${DEFAULT_THINKING_LEVEL}.
-
-Calls Google AI Studio directly. Credentials (first match wins):
+Credentials (first match wins):
   ${TOKEN_ENV}   API key, sent as the "${AUTH_HEADER}" header.
-  ~/.pi/agent/auth.json "google" api_key entry (fallback).
-
-Default model: ${DEFAULT_MODEL} (override with --model).
+  ~/.pi/agent/auth.json "${PI_AUTH_PROVIDER}" api_key entry (fallback).
 
 Examples:
   node search.mjs "coffee shops within a 10 minute walk" --lat 25.033964 --lng 121.564468
