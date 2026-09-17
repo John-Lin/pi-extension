@@ -228,6 +228,7 @@ export function buildRequestBody({
 	}
 	return {
 		model,
+		store: false,
 		input: buildPrompt(query, purpose),
 		// Interactions API tool spec: {type:"google_maps"} (NOT the legacy
 		// generateContent {googleMaps:{}}).

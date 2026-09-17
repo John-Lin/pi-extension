@@ -181,6 +181,7 @@ export function buildPrompt(query, purpose) {
 export function buildRequestBody({ model, query, purpose, thinkingLevel = DEFAULT_THINKING_LEVEL }) {
 	return {
 		model,
+		store: false,
 		input: buildPrompt(query, purpose),
 		// Interactions API tool spec: {type:"google_search"} (NOT the legacy
 		// generateContent {googleSearch:{}}). google_search and google_maps

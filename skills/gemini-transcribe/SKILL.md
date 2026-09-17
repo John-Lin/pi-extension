@@ -30,6 +30,9 @@ remove filler words, repetitions, and false starts and apply readable
 punctuation and formatting. Treat the result as an edited transcript, not a
 verbatim record.
 
+Requests use `store: false` to disable Interactions API object storage. Audio
+still goes to Google; this is not a guarantee of zero provider retention.
+
 The script uploads audio through the Files API and attempts to delete the
 remote file after transcription succeeds or fails. Report API and cleanup
 errors rather than silently switching models or providers.

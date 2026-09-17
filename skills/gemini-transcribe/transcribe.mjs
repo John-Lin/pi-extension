@@ -54,6 +54,7 @@ export function mimeTypeForPath(audioPath) {
 export function buildTranscriptionRequest(fileUri, mimeType) {
 	return {
 		model: MODEL,
+		store: false,
 		input: [
 			{
 				type: "audio",

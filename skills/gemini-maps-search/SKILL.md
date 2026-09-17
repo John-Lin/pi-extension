@@ -33,6 +33,9 @@ node search.mjs "<what to find>" [--lat <deg> --lng <deg>] --purpose "<why you n
 
 ## Notes
 
+- Requests use `store: false` to disable Interactions API object storage. Queries,
+  purposes, and coordinates still go to Google; this is not a guarantee of zero
+  provider retention.
 - `gemini-3.5-flash-lite` answers about twice as fast but follows constraints
   less well; prefer the default unless latency matters more than accuracy.
 - Google documents Maps grounding as **English only**. Chinese prompts do work

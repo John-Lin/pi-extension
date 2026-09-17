@@ -125,6 +125,7 @@ test("buildRequestBody enables google_maps grounding and carries the prompt", ()
 	const body = buildRequestBody({ model: "gemini-3.8-flash", query: "best ramen", purpose: "dinner plan" });
 	assert.equal(body.model, "gemini-3.8-flash");
 	assert.deepEqual(body.tools, [{ type: "google_maps" }]);
+	assert.equal(body.store, false, "one-shot place searches must opt out of interaction storage");
 	assert.ok(body.input.includes("best ramen"));
 	assert.ok(body.input.includes("dinner plan"));
 	assert.deepEqual(body.generation_config, { thinking_level: "medium" });

@@ -156,6 +156,7 @@ test("transcribe uploads bytes, requests smart transcription, and deletes the fi
 	assert.equal(requests[2].headers.get("content-type"), "application/json");
 	assert.deepEqual(JSON.parse(requests[2].body as string), {
 		model: "gemini-3.5-transcribe",
+		store: false,
 		input: [{ type: "audio", uri: fileUri, mime_type: "audio/wav" }],
 		generation_config: { transcription_config: { mode: "smart" } },
 	});
