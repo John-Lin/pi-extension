@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, realpathSync } from "node:fs";
 import { extname, basename } from "node:path";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
-import { validateInteraction } from "../lib/gemini-interactions.mjs";
-import { INTERACTIONS_URL, buildAuthHeaders, extractText, resolveApiKey } from "../gemini-web-search/search.mjs";
+import { validateInteraction } from "./gemini-interactions.mjs";
+import { INTERACTIONS_URL, buildAuthHeaders, extractText, resolveApiKey } from "./google.mjs";
 
 const GOOGLE_BASE_URL = new URL(INTERACTIONS_URL).origin;
 const MODEL = "gemini-3.5-transcribe";
@@ -210,7 +210,8 @@ export async function main(argv = process.argv.slice(2)) {
 	}
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const invokedDirectly = process.argv[1] && existsSync(process.argv[1]) &&
+	import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (invokedDirectly) {
 	main().then((code) => { process.exitCode = code; }).catch((error) => {
