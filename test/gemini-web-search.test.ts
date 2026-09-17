@@ -111,6 +111,7 @@ test("buildRequestBody enables google_search grounding and carries the prompt", 
 	const body = buildRequestBody({ model: "gemini-3.6-flash", query: "latest node lts", purpose: "upgrade plan" });
 	assert.equal(body.model, "gemini-3.6-flash");
 	assert.deepEqual(body.tools, [{ type: "google_search" }]);
+	assert.equal(body.store, false, "one-shot searches must opt out of interaction storage");
 	assert.ok(body.input.includes("latest node lts"));
 	assert.ok(body.input.includes("upgrade plan"));
 });

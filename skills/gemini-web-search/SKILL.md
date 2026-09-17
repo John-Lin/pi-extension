@@ -28,6 +28,10 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 
 ## Notes
 
+- Requests use `store: false` to disable Interactions API object storage. Queries
+  and purposes still go to Google; this is not a guarantee of zero provider retention.
+- Only completed interactions with successful Google Search execution are printed.
+  A search that finds no matches is distinct from missing or failed grounding.
 - Citation URLs are Google redirect URLs that resolve to the real source on
   click; the `title` carries the source domain.
 - A 429 means the search-grounding quota is exhausted — report it rather than

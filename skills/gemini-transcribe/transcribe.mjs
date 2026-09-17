@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, realpathSync } from "node:fs";
 import { extname, basename } from "node:path";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
-import { INTERACTIONS_URL, buildAuthHeaders, extractText, resolveApiKey } from "../gemini-web-search/search.mjs";
+import { validateInteraction } from "./gemini-interactions.mjs";
+import { INTERACTIONS_URL, buildAuthHeaders, extractText, resolveApiKey } from "./google.mjs";
 
 const GOOGLE_BASE_URL = new URL(INTERACTIONS_URL).origin;
 const MODEL = "gemini-3.5-transcribe";
@@ -54,6 +55,7 @@ export function mimeTypeForPath(audioPath) {
 export function buildTranscriptionRequest(fileUri, mimeType) {
 	return {
 		model: MODEL,
+		store: false,
 		input: [
 			{
 				type: "audio",
@@ -135,7 +137,9 @@ async function deleteUploadedFile(fileName, apiKey) {
 export async function transcribe(audioPath, apiKey) {
 	const mimeType = mimeTypeForPath(audioPath);
 	const uploaded = await uploadAudio(audioPath, mimeType, apiKey);
+	let interaction;
 	let transcriptionError;
+	let cleanupError;
 	try {
 		const response = await fetch(INTERACTIONS_URL, {
 			method: "POST",
@@ -149,7 +153,11 @@ export async function transcribe(audioPath, apiKey) {
 		if (!response.ok) {
 			throw responseError("transcription", response, body);
 		}
-		return JSON.parse(body);
+		interaction = JSON.parse(body);
+		validateInteraction(interaction);
+		if (!extractText(interaction).trim()) {
+			throw new Error("transcription response did not contain text");
+		}
 	} catch (error) {
 		transcriptionError = error;
 		throw error;
@@ -157,53 +165,57 @@ export async function transcribe(audioPath, apiKey) {
 		try {
 			await deleteUploadedFile(uploaded.name, apiKey);
 		} catch (error) {
+			cleanupError = new Error(`${error.message || String(error)} (remote file: ${uploaded.name})`);
 			if (transcriptionError) {
-				throw new Error(`${transcriptionError.message}; ${error.message}`);
+				throw new Error(`${transcriptionError.message}; ${cleanupError.message}`);
 			}
-			throw error;
 		}
 	}
+	return { interaction, cleanupError };
 }
 
-async function main() {
+export async function main(argv = process.argv.slice(2)) {
 	let args;
 	try {
-		args = parseArgs(process.argv.slice(2));
+		args = parseArgs(argv);
 	} catch (error) {
 		console.error(`Error: ${error.message}`);
 		console.error(usage());
-		process.exitCode = 1;
-		return;
+		return 1;
 	}
 	if (args.help) {
 		console.log(usage());
-		return;
+		return 0;
 	}
 
 	try {
 		await stat(args.audioPath);
 	} catch {
 		console.error(`Error: file not found: ${args.audioPath}`);
-		process.exitCode = 1;
-		return;
+		return 1;
 	}
 
 	try {
 		const { apiKey } = resolveApiKey();
-		const interaction = await transcribe(args.audioPath, apiKey);
-		const transcript = extractText(interaction);
-		if (!transcript) {
-			throw new Error("transcription response did not contain text");
+		const { interaction, cleanupError } = await transcribe(args.audioPath, apiKey);
+		console.log(extractText(interaction));
+		if (cleanupError) {
+			console.error(`Error: ${cleanupError.message}`);
+			return 1;
 		}
-		console.log(transcript);
+		return 0;
 	} catch (error) {
 		console.error(`Error: ${error.message || String(error)}`);
-		process.exitCode = 1;
+		return 1;
 	}
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const invokedDirectly = process.argv[1] && existsSync(process.argv[1]) &&
+	import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (invokedDirectly) {
-	main();
+	main().then((code) => { process.exitCode = code; }).catch((error) => {
+		console.error(`Error: ${error.message || String(error)}`);
+		process.exitCode = 1;
+	});
 }

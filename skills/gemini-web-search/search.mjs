@@ -8,10 +8,11 @@
 // ~/.pi/agent/auth.json as a fallback. Sent as the x-goog-api-key header.
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { validateInteraction } from "./gemini-interactions.mjs";
 
 export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const TOKEN_ENV = "GEMINI_API_KEY";
@@ -181,6 +182,7 @@ export function buildPrompt(query, purpose) {
 export function buildRequestBody({ model, query, purpose, thinkingLevel = DEFAULT_THINKING_LEVEL }) {
 	return {
 		model,
+		store: false,
 		input: buildPrompt(query, purpose),
 		// Interactions API tool spec: {type:"google_search"} (NOT the legacy
 		// generateContent {googleSearch:{}}). google_search and google_maps
@@ -253,11 +255,11 @@ function formatHuman({ model, source, query, purpose, text, citations, stepTypes
 	return lines.join("\n");
 }
 
-async function main() {
-	const args = parseArgs(process.argv.slice(2));
+export async function main(argv = process.argv.slice(2)) {
+	const args = parseArgs(argv);
 	if (args.help || !args.query) {
 		console.error(usage());
-		process.exit(args.help ? 0 : 1);
+		return args.help ? 0 : 1;
 	}
 
 	let apiKey;
@@ -266,7 +268,7 @@ async function main() {
 		({ apiKey, source } = resolveApiKey());
 	} catch (err) {
 		console.error(`Error: ${err.message}`);
-		process.exit(1);
+		return 1;
 	}
 
 	const model = args.model || DEFAULT_MODEL;
@@ -275,6 +277,7 @@ async function main() {
 		typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
 
 	let interaction;
+	let text;
 	try {
 		const res = await fetch(INTERACTIONS_URL, {
 			method: "POST",
@@ -297,15 +300,17 @@ async function main() {
 		if (!res.ok) {
 			console.error(`Error: Interactions request failed (${res.status})`);
 			console.error(`Body: ${payload}`);
-			process.exit(1);
+			return 1;
 		}
 		interaction = JSON.parse(payload);
+		validateInteraction(interaction, "google_search");
+		text = extractText(interaction);
+		if (!text.trim()) throw new Error("Search response did not contain text.");
 	} catch (err) {
 		console.error(`Error: ${err?.message || String(err)}`);
-		process.exit(1);
+		return 1;
 	}
 
-	const text = extractText(interaction);
 	const citations = extractCitations(interaction);
 	const stepTypes = (interaction?.steps || []).map((s) => s?.type).filter(Boolean);
 
@@ -317,7 +322,7 @@ async function main() {
 				2,
 			),
 		);
-		return;
+		return 0;
 	}
 
 	console.log(
@@ -332,12 +337,14 @@ async function main() {
 			showRaw: args.raw,
 		}),
 	);
+	return 0;
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const invokedDirectly = process.argv[1] && existsSync(process.argv[1]) &&
+	import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (invokedDirectly) {
-	main().catch((err) => {
+	main().then((code) => { process.exitCode = code; }).catch((err) => {
 		console.error(`Error: ${err?.message || err}`);
 		process.exit(1);
 	});

@@ -28,17 +28,20 @@ transcript; errors go to stderr and produce a nonzero exit status.
 Accepts AAC, FLAC, M4A, MP3, OGG, WAV, and WebM. Uses smart transcription to
 remove filler words, repetitions, and false starts and apply readable
 punctuation and formatting. Treat the result as an edited transcript, not a
-verbatim record.
+verbatim record. Incomplete interactions and responses without text are rejected.
+
+Requests use `store: false` to disable Interactions API object storage. Audio
+still goes to Google; this is not a guarantee of zero provider retention.
 
 The script uploads audio through the Files API and attempts to delete the
-remote file after transcription succeeds or fails. Report API and cleanup
-errors rather than silently switching models or providers.
+remote file after transcription succeeds or fails. If transcription succeeds
+but deletion fails, stdout still contains the completed transcript; stderr names
+the remote file and the command exits nonzero. Preserve that transcript and
+report the cleanup issue rather than repeating transcription. If both operations
+fail, stderr reports both errors. Report API errors rather than silently switching
+models or providers.
 
-## Maintenance
-
-Keep the sibling `gemini-web-search` skill installed: the script imports its
-Google endpoint, credential resolution, and response-text helpers so both
-skills use the same authentication behavior.
+## References
 
 API references: [transcription](https://ai.google.dev/gemini-api/docs/generate-content/transcribe)
 and [file upload/deletion](https://ai.google.dev/gemini-api/docs/generate-content/files).
