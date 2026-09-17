@@ -9,10 +9,9 @@ export function validateInteraction(interaction, groundingTool) {
 	if (calls.length === 0) {
 		throw new Error(`${groundingTool} grounding was not executed.`);
 	}
+	const toolResults = steps.filter((step) => step?.type === `${groundingTool}_result`);
 	for (const call of calls) {
-		const results = steps.filter((step) =>
-			step?.type === `${groundingTool}_result` && call.id && step.call_id === call.id,
-		);
+		const results = toolResults.filter((result) => call.id && result.call_id === call.id);
 		if (results.length === 0) {
 			throw new Error(`${groundingTool} grounding result is missing.`);
 		}
@@ -22,5 +21,8 @@ export function validateInteraction(interaction, groundingTool) {
 		if (results.some((result) => !Array.isArray(result.result))) {
 			throw new Error(`${groundingTool} grounding result is invalid.`);
 		}
+	}
+	if (toolResults.some((result) => !calls.some((call) => call.id && call.id === result.call_id))) {
+		throw new Error(`${groundingTool} grounding result does not match a call.`);
 	}
 }

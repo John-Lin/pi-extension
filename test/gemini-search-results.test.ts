@@ -38,6 +38,7 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 		["no grounding result", (steps) => steps.filter((step) => step.type !== `${tool}_result`), /grounding result is missing/],
 		["an unrelated grounding result", (steps) => steps.map((step) => step.type === `${tool}_result` ? { ...step, call_id: "unrelated" } : step), /grounding result is missing/],
 		["malformed grounding results", (steps) => steps.map((step) => step.type === `${tool}_result` ? { ...step, result: null } : step), /grounding result is invalid/],
+		["an extra unmatched grounding result", (steps) => [...steps, { ...steps.find((step) => step.type === `${tool}_result`), call_id: "unrelated" }], /grounding result does not match a call/],
 	] as const) {
 		test(`${skill} rejects ${name} instead of presenting unverified text`, async (t) => {
 			const { stdout, stderr } = captureOutput(t);
@@ -83,6 +84,16 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 	});
 
 	if (tool === "google_search") {
+		test(`${skill} rejects an unmatched grounding error beside a successful search`, async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			const failedResult = { type: "google_search_result", call_id: "unrelated", is_error: true, result: [] };
+			captureRequests(t, [Response.json({ ...sample, steps: [...sample.steps, failedResult] })]);
+			assert.equal(await module.main(["test query"]), 1);
+			assert.deepEqual(stdout, []);
+			assert.equal(stderr.length, 1);
+			assert.match(stderr[0], /grounding result does not match a call/);
+		});
+
 		test(`${skill} rejects a grounding error even if other searches succeeded`, async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			const failedCall = { ...sample.steps.find((step) => step.type === "google_search_call"), id: "failed-call" };
