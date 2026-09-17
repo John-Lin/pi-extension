@@ -5,6 +5,7 @@ import { extname, basename } from "node:path";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
+import { validateInteraction } from "../lib/gemini-interactions.mjs";
 import { INTERACTIONS_URL, buildAuthHeaders, extractText, resolveApiKey } from "../gemini-web-search/search.mjs";
 
 const GOOGLE_BASE_URL = new URL(INTERACTIONS_URL).origin;
@@ -150,7 +151,12 @@ export async function transcribe(audioPath, apiKey) {
 		if (!response.ok) {
 			throw responseError("transcription", response, body);
 		}
-		return JSON.parse(body);
+		const interaction = JSON.parse(body);
+		validateInteraction(interaction);
+		if (!extractText(interaction).trim()) {
+			throw new Error("transcription response did not contain text");
+		}
+		return interaction;
 	} catch (error) {
 		transcriptionError = error;
 		throw error;
@@ -192,11 +198,7 @@ async function main() {
 	try {
 		const { apiKey } = resolveApiKey();
 		const interaction = await transcribe(args.audioPath, apiKey);
-		const transcript = extractText(interaction);
-		if (!transcript) {
-			throw new Error("transcription response did not contain text");
-		}
-		console.log(transcript);
+		console.log(extractText(interaction));
 	} catch (error) {
 		console.error(`Error: ${error.message || String(error)}`);
 		process.exitCode = 1;

@@ -36,6 +36,9 @@ node search.mjs "<what to find>" [--lat <deg> --lng <deg>] --purpose "<why you n
 - Requests use `store: false` to disable Interactions API object storage. Queries,
   purposes, and coordinates still go to Google; this is not a guarantee of zero
   provider retention.
+- Only completed interactions with matching Google Maps calls and results are printed.
+  A search that finds no matches is distinct from missing or failed grounding.
+- Keep the package directory layout intact; result validation uses `../lib/gemini-interactions.mjs`.
 - `gemini-3.5-flash-lite` answers about twice as fast but follows constraints
   less well; prefer the default unless latency matters more than accuracy.
 - Google documents Maps grounding as **English only**. Chinese prompts do work

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
+import { captureRequests } from "./helpers/gemini-cli.ts";
 
 const script = fileURLToPath(new URL("../skills/gemini-transcribe/transcribe.mjs", import.meta.url));
 const uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?upload_id=sample";
@@ -28,23 +29,6 @@ function localAudio(t: TestContext) {
 
 function run(args: string[], env: NodeJS.ProcessEnv) {
 	return spawnSync(process.execPath, [script, ...args], { encoding: "utf8", env });
-}
-
-// Only the external HTTP boundary is replaced; request construction, file
-// streaming, response parsing, and cleanup run through the production code.
-function captureRequests(t: TestContext, responses: (Response | Error)[]) {
-	const requests: { url: string; method: string; headers: Headers; body: string | Buffer | undefined }[] = [];
-	t.mock.method(globalThis, "fetch", async (url: string | URL, options: RequestInit) => {
-		const body = typeof options.body === "string" || options.body == null
-			? options.body ?? undefined
-			: Buffer.from(await new Response(options.body).arrayBuffer());
-		requests.push({ url: String(url), method: options.method!, headers: new Headers(options.headers), body });
-		const response = responses[requests.length - 1];
-		assert.ok(response, `unexpected HTTP request: ${options.method} ${url}`);
-		if (response instanceof Error) throw response;
-		return response;
-	});
-	return requests;
 }
 
 function uploadResponses(mimeType?: string) {
@@ -130,10 +114,10 @@ test("transcribe uploads bytes, requests smart transcription, and deletes the fi
 	const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
 	const { audioPath, audio } = localAudio(t);
 	const requests = captureRequests(t, [
-		...uploadResponses("audio/wav"), Response.json({ output_text: "Hello, John." }), new Response(null, { status: 204 }),
+		...uploadResponses("audio/wav"), Response.json({ status: "completed", output_text: "Hello, John." }), new Response(null, { status: 204 }),
 	]);
 
-	assert.deepEqual(await transcribe(audioPath, "google-test-key"), { output_text: "Hello, John." });
+	assert.deepEqual(await transcribe(audioPath, "google-test-key"), { status: "completed", output_text: "Hello, John." });
 	assert.deepEqual(requests.map(({ url, method }) => [url, method]), [
 		["https://generativelanguage.googleapis.com/upload/v1beta/files", "POST"],
 		[uploadUrl, "POST"],
@@ -166,7 +150,7 @@ test("transcribe prefers the uploaded MIME type and otherwise uses the local typ
 	const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
 	const { audioPath } = localAudio(t);
 	for (const [uploadedType, want] of [["audio/x-wav", "audio/x-wav"], [undefined, "audio/wav"]]) {
-		const requests = captureRequests(t, [...uploadResponses(uploadedType), Response.json({ output_text: "text" }), new Response()]);
+		const requests = captureRequests(t, [...uploadResponses(uploadedType), Response.json({ status: "completed", output_text: "text" }), new Response()]);
 		await transcribe(audioPath, "test-key");
 		assert.equal(JSON.parse(requests[2].body as string).input[0].mime_type, want);
 		t.mock.restoreAll();
@@ -181,7 +165,7 @@ for (const scenario of [
 	{ name: "transcription is rejected", responses: () => [...uploadResponses(), new Response("quota exceeded", { status: 429 }), new Response()], error: /transcription failed \(429\): quota exceeded/, count: 4 },
 	{ name: "transcription returns invalid JSON", responses: () => [...uploadResponses(), new Response("not JSON"), new Response()], error: /JSON/, count: 4 },
 	{ name: "transcription has a network failure", responses: () => [...uploadResponses(), new Error("connection lost"), new Response()], error: /connection lost/, count: 4 },
-	{ name: "remote deletion fails", responses: () => [...uploadResponses(), Response.json({ output_text: "text" }), new Response("try later", { status: 503 })], error: /uploaded file deletion failed \(503\): try later/, count: 4 },
+	{ name: "remote deletion fails", responses: () => [...uploadResponses(), Response.json({ status: "completed", output_text: "text" }), new Response("try later", { status: 503 })], error: /uploaded file deletion failed \(503\): try later/, count: 4 },
 ]) {
 	test(`transcribe reports when ${scenario.name} and cleans up any completed upload`, async (t) => {
 		const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
@@ -193,6 +177,32 @@ for (const scenario of [
 			assert.equal(requests[3].url, fileUri);
 			assert.equal(requests[3].method, "DELETE");
 		}
+	});
+}
+
+for (const status of ["failed", "incomplete", "budget_exceeded", "cancelled", "in_progress", "requires_action", "queued", undefined]) {
+	test(`transcribe rejects ${status ?? "missing"} status and deletes the upload`, async (t) => {
+		const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
+		const { audioPath } = localAudio(t);
+		const requests = captureRequests(t, [
+			...uploadResponses(), Response.json({ status, output_text: "Partial transcript" }), new Response(),
+		]);
+		await assert.rejects(transcribe(audioPath, "test-key"), new RegExp(`did not complete.*${status ?? "missing"}`));
+		assert.equal(requests.length, 4);
+		assert.equal(requests[3].method, "DELETE");
+		assert.equal(requests[3].url, fileUri);
+	});
+}
+
+for (const output_text of [undefined, "", " \n "]) {
+	test(`transcribe rejects an empty completed response (${JSON.stringify(output_text)})`, async (t) => {
+		const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
+		const { audioPath } = localAudio(t);
+		const requests = captureRequests(t, [
+			...uploadResponses(), Response.json({ status: "completed", output_text }), new Response(),
+		]);
+		await assert.rejects(transcribe(audioPath, "test-key"), /did not contain text/);
+		assert.equal(requests[3].method, "DELETE");
 	});
 }
 

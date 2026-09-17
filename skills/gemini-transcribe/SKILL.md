@@ -28,7 +28,7 @@ transcript; errors go to stderr and produce a nonzero exit status.
 Accepts AAC, FLAC, M4A, MP3, OGG, WAV, and WebM. Uses smart transcription to
 remove filler words, repetitions, and false starts and apply readable
 punctuation and formatting. Treat the result as an edited transcript, not a
-verbatim record.
+verbatim record. Incomplete interactions and responses without text are rejected.
 
 Requests use `store: false` to disable Interactions API object storage. Audio
 still goes to Google; this is not a guarantee of zero provider retention.
@@ -41,7 +41,8 @@ errors rather than silently switching models or providers.
 
 Keep the sibling `gemini-web-search` skill installed: the script imports its
 Google endpoint, credential resolution, and response-text helpers so both
-skills use the same authentication behavior.
+skills use the same authentication behavior. Keep the package directory layout
+intact for the shared validator at `../lib/gemini-interactions.mjs`.
 
 API references: [transcription](https://ai.google.dev/gemini-api/docs/generate-content/transcribe)
 and [file upload/deletion](https://ai.google.dev/gemini-api/docs/generate-content/files).
