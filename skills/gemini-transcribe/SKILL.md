@@ -12,9 +12,6 @@ or the `google` api_key entry in Pi's `~/.pi/agent/auth.json`, sent as the
 `x-goog-api-key` header. Uploads, transcription, and deletion go directly to
 `generativelanguage.googleapis.com`.
 
-Copy this entire directory, including its local helpers, to use it independently.
-Pi is optional when using `GEMINI_API_KEY`.
-
 ## Usage
 
 Run from the skill directory, or resolve `transcribe.mjs` relative to this file:

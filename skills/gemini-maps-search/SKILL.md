@@ -14,9 +14,6 @@ section of Google Maps links.
 No npm install required (uses Node built-in `fetch`). Needs a Gemini API key —
 `GEMINI_API_KEY`, or the `google` api_key entry in pi's `~/.pi/agent/auth.json`.
 
-Copy this entire directory, including its local helper, to use it independently.
-Pi is optional when using `GEMINI_API_KEY`.
-
 ## Usage
 
 Run from the skill directory. `node search.mjs` with no arguments prints every
