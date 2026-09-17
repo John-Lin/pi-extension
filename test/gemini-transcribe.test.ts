@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import { captureRequests } from "./helpers/gemini-cli.ts";
+import { captureOutput, captureRequests } from "./helpers/gemini-cli.ts";
 
 const script = fileURLToPath(new URL("../skills/gemini-transcribe/transcribe.mjs", import.meta.url));
 const uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?upload_id=sample";
@@ -117,7 +117,10 @@ test("transcribe uploads bytes, requests smart transcription, and deletes the fi
 		...uploadResponses("audio/wav"), Response.json({ status: "completed", output_text: "Hello, John." }), new Response(null, { status: 204 }),
 	]);
 
-	assert.deepEqual(await transcribe(audioPath, "google-test-key"), { status: "completed", output_text: "Hello, John." });
+	assert.deepEqual(await transcribe(audioPath, "google-test-key"), {
+		interaction: { status: "completed", output_text: "Hello, John." },
+		cleanupError: undefined,
+	});
 	assert.deepEqual(requests.map(({ url, method }) => [url, method]), [
 		["https://generativelanguage.googleapis.com/upload/v1beta/files", "POST"],
 		[uploadUrl, "POST"],
@@ -165,7 +168,6 @@ for (const scenario of [
 	{ name: "transcription is rejected", responses: () => [...uploadResponses(), new Response("quota exceeded", { status: 429 }), new Response()], error: /transcription failed \(429\): quota exceeded/, count: 4 },
 	{ name: "transcription returns invalid JSON", responses: () => [...uploadResponses(), new Response("not JSON"), new Response()], error: /JSON/, count: 4 },
 	{ name: "transcription has a network failure", responses: () => [...uploadResponses(), new Error("connection lost"), new Response()], error: /connection lost/, count: 4 },
-	{ name: "remote deletion fails", responses: () => [...uploadResponses(), Response.json({ status: "completed", output_text: "text" }), new Response("try later", { status: 503 })], error: /uploaded file deletion failed \(503\): try later/, count: 4 },
 ]) {
 	test(`transcribe reports when ${scenario.name} and cleans up any completed upload`, async (t) => {
 		const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
@@ -203,6 +205,44 @@ for (const output_text of [undefined, "", " \n "]) {
 		]);
 		await assert.rejects(transcribe(audioPath, "test-key"), /did not contain text/);
 		assert.equal(requests[3].method, "DELETE");
+	});
+}
+
+for (const [name, cleanup, message] of [
+	["HTTP failure", () => new Response("try later", { status: 503 }), /uploaded file deletion failed \(503\): try later/],
+	["network failure", () => new Error("connection lost"), /connection lost/],
+] as const) {
+	test(`transcribe preserves its successful result after cleanup ${name}`, async (t) => {
+		const { transcribe } = await import("../skills/gemini-transcribe/transcribe.mjs");
+		const { audioPath } = localAudio(t);
+		captureRequests(t, [
+			...uploadResponses(), Response.json({ status: "completed", output_text: "Hello, John." }), cleanup(),
+		]);
+		const result = await transcribe(audioPath, "test-key");
+		assert.deepEqual(result.interaction, { status: "completed", output_text: "Hello, John." });
+		assert.match(result.cleanupError.message, message);
+		assert.match(result.cleanupError.message, /files\/sample/);
+	});
+}
+
+for (const scenario of [
+	{ name: "success", status: "completed", cleanup: () => new Response(), code: 0, stdout: ["Hello, John."], errors: [] },
+	{ name: "cleanup HTTP failure", status: "completed", cleanup: () => new Response("try later", { status: 503 }), code: 1, stdout: ["Hello, John."], errors: [/uploaded file deletion failed \(503\): try later/, /files\/sample/] },
+	{ name: "cleanup network failure", status: "completed", cleanup: () => new Error("connection lost"), code: 1, stdout: ["Hello, John."], errors: [/connection lost/, /files\/sample/] },
+	{ name: "incomplete transcription", status: "incomplete", cleanup: () => new Response(), code: 1, stdout: [], errors: [/did not complete.*incomplete/] },
+	{ name: "incomplete transcription and cleanup failure", status: "incomplete", cleanup: () => new Response("try later", { status: 503 }), code: 1, stdout: [], errors: [/did not complete.*incomplete/, /uploaded file deletion failed \(503\)/, /files\/sample/] },
+]) {
+	test(`transcribe main reports ${scenario.name} with the correct output and exit code`, async (t) => {
+		const { main } = await import("../skills/gemini-transcribe/transcribe.mjs");
+		const { audioPath } = localAudio(t);
+		const { stdout, stderr } = captureOutput(t);
+		captureRequests(t, [
+			...uploadResponses(), Response.json({ status: scenario.status, output_text: "Hello, John." }), scenario.cleanup(),
+		]);
+		assert.equal(await main([audioPath]), scenario.code);
+		assert.deepEqual(stdout, scenario.stdout);
+		assert.equal(stderr.length, scenario.errors.length ? 1 : 0);
+		for (const message of scenario.errors) assert.match(stderr[0], message);
 	});
 }
 
