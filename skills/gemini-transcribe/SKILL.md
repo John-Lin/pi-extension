@@ -12,6 +12,9 @@ or the `google` api_key entry in Pi's `~/.pi/agent/auth.json`, sent as the
 `x-goog-api-key` header. Uploads, transcription, and deletion go directly to
 `generativelanguage.googleapis.com`.
 
+Copy this entire directory, including its local helpers, to use it independently.
+Pi is optional when using `GEMINI_API_KEY`.
+
 ## Usage
 
 Run from the skill directory, or resolve `transcribe.mjs` relative to this file:
@@ -41,12 +44,7 @@ report the cleanup issue rather than repeating transcription. If both operations
 fail, stderr reports both errors. Report API errors rather than silently switching
 models or providers.
 
-## Maintenance
-
-Keep the sibling `gemini-web-search` skill installed: the script imports its
-Google endpoint, credential resolution, and response-text helpers so both
-skills use the same authentication behavior. Keep the package directory layout
-intact for the shared validator at `../lib/gemini-interactions.mjs`.
+## References
 
 API references: [transcription](https://ai.google.dev/gemini-api/docs/generate-content/transcribe)
 and [file upload/deletion](https://ai.google.dev/gemini-api/docs/generate-content/files).

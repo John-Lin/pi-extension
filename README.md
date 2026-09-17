@@ -19,13 +19,17 @@ skills/
   gemini-maps-search/
     SKILL.md
     search.mjs
+    gemini-interactions.mjs
     fixtures/
   gemini-transcribe/
     SKILL.md
     transcribe.mjs
+    google.mjs
+    gemini-interactions.mjs
   gemini-web-search/
     SKILL.md
     search.mjs
+    gemini-interactions.mjs
     fixtures/
   native-web-search/
     SKILL.md
@@ -41,6 +45,13 @@ Pi auto-discovers top-level extension files and directory entrypoints like `exte
 `/btw` now runs as a bottom overlay inside pi, so it no longer depends on Ghostty or AppleScript.
 
 ## Usage
+
+### Standalone Gemini skills
+
+Each Gemini skill is an independent distribution unit. Copy its entire directory
+to another agent; Node.js and `GEMINI_API_KEY` are sufficient, without Pi or sibling
+skills. Helper copies are intentionally kept inside each skill so distribution
+never requires a shared runtime directory.
 
 ### Quick testing
 
