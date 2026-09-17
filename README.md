@@ -20,6 +20,9 @@ skills/
     SKILL.md
     search.mjs
     fixtures/
+  gemini-transcribe/
+    SKILL.md
+    transcribe.mjs
   gemini-web-search/
     SKILL.md
     search.mjs
