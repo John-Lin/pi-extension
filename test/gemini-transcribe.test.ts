@@ -117,7 +117,7 @@ test("transcribe recognizes supported audio MIME types case-insensitively", asyn
 	const { mimeTypeForPath } = await import("../skills/gemini-transcribe/transcribe.mjs");
 	for (const [path, want] of [
 		["sample.aac", "audio/aac"], ["sample.flac", "audio/flac"],
-		["sample.m4a", "audio/mp4"], ["sample.mp3", "audio/mpeg"],
+		["sample.m4a", "audio/m4a"], ["sample.mp3", "audio/mpeg"],
 		["sample.ogg", "audio/ogg"], ["sample.WAV", "audio/wav"], ["sample.webm", "audio/webm"],
 	]) {
 		assert.equal(mimeTypeForPath(path), want);

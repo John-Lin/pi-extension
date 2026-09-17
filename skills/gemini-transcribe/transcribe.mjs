@@ -13,7 +13,7 @@ const MODEL = "gemini-3.5-transcribe";
 const MIME_TYPES = {
 	".aac": "audio/aac",
 	".flac": "audio/flac",
-	".m4a": "audio/mp4",
+	".m4a": "audio/m4a",
 	".mp3": "audio/mpeg",
 	".ogg": "audio/ogg",
 	".wav": "audio/wav",
