@@ -100,7 +100,19 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			const { stdout, stderr } = captureOutput(t);
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			const requests = captureRequests(t, [
-				Response.json({ answers: { gemini_configuration: { choice: "flash_3_1_flash_lite_minimal" } } }),
+				Response.json({
+					answers: {
+						gemini_configuration: {
+							choice: "flash_3_1_flash_lite_minimal",
+							confidence: 0.82,
+							probabilities: {
+								flash_3_8_medium: 0.08,
+								flash_3_8_low: 0.1,
+								flash_3_1_flash_lite_minimal: 0.82,
+							},
+						},
+					},
+				}),
 				Response.json(sample),
 			]);
 			assert.equal(await module.main(["test query", "--model", "ignored", "--thinking", "high", "--json"]), 0);
@@ -112,6 +124,41 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(googleRequest.model, "gemini-3.1-flash-lite");
 			assert.deepEqual(googleRequest.generation_config, { thinking_level: "minimal" });
 			assert.equal(JSON.parse(stdout[0]).model, "gemini-3.1-flash-lite");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "minimal");
+			assert.deepEqual(JSON.parse(stdout[0]).jev, {
+				choice: "flash_3_1_flash_lite_minimal",
+				confidence: 0.82,
+				probabilities: {
+					flash_3_8_medium: 0.08,
+					flash_3_8_low: 0.1,
+					flash_3_1_flash_lite_minimal: 0.82,
+				},
+			});
+			assert.deepEqual(stderr, []);
+		});
+
+		test("gemini-web-search prints Jev's selected thinking level in human output", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			captureRequests(t, [
+				Response.json({
+					answers: {
+						gemini_configuration: {
+							choice: "flash_3_8_low",
+							confidence: 0.78,
+							probabilities: {
+								flash_3_8_medium: 0.12,
+								flash_3_8_low: 0.78,
+								flash_3_1_flash_lite_minimal: 0.1,
+							},
+						},
+					},
+				}),
+				Response.json(sample),
+			]);
+			assert.equal(await module.main(["test query"]), 0);
+			assert.match(stdout[0], /^Model: gemini-3\.8-flash \(thinking: low, auth: env:GEMINI_API_KEY\)$/m);
+			assert.match(stdout[0], /^Jev: flash_3_8_low \(confidence: 0\.78; probabilities: flash_3_8_medium=0\.12, flash_3_8_low=0\.78, flash_3_1_flash_lite_minimal=0\.1\)$/m);
 			assert.deepEqual(stderr, []);
 		});
 

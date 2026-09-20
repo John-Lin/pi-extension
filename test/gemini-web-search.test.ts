@@ -146,7 +146,7 @@ test("buildThinkingSelectionRequest asks Jev to choose one of the three supporte
 	assert.equal(request.questions.gemini_configuration.type, "choice");
 });
 
-test("selectGeminiConfiguration converts every Jev Choice to its Gemini model and thinking level", () => {
+test("selectGeminiConfiguration converts every Jev Choice to its Gemini model, thinking level, and score", () => {
 	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
 	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
 	const cases = [
@@ -154,16 +154,26 @@ test("selectGeminiConfiguration converts every Jev Choice to its Gemini model an
 		["flash_3_8_low", { model: "gemini-3.8-flash", thinkingLevel: "low" }],
 		["flash_3_1_flash_lite_minimal", { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" }],
 	] as const;
-	for (const [choice, expected] of cases) {
-		assert.deepEqual(geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice } } }), expected);
+	for (const [choice, configuration] of cases) {
+		const probabilities = { flash_3_8_medium: 0.1, flash_3_8_low: 0.2, flash_3_1_flash_lite_minimal: 0.7 };
+		assert.deepEqual(geminiSearch.selectGeminiConfiguration({
+			answers: { gemini_configuration: { choice, confidence: 0.7, probabilities } },
+		}), {
+			...configuration,
+			jev: { choice, confidence: 0.7, probabilities },
+		});
 	}
 });
 
-test("selectGeminiConfiguration rejects an invalid Jev Choice", () => {
+test("selectGeminiConfiguration rejects an invalid Jev Choice or score", () => {
 	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
 	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
 	assert.throws(
 		() => geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice: "unknown" } } }),
+		/invalid Gemini configuration/i,
+	);
+	assert.throws(
+		() => geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice: "flash_3_8_low" } } }),
 		/invalid Gemini configuration/i,
 	);
 });

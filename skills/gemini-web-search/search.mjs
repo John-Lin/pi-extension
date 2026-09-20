@@ -164,10 +164,19 @@ export function buildThinkingSelectionRequest(query) {
 }
 
 export function selectGeminiConfiguration(selection) {
-	const choice = selection?.answers?.gemini_configuration?.choice;
-	const configuration = GEMINI_CONFIGURATIONS[choice];
-	if (!configuration) throw new Error("Jev returned an invalid Gemini configuration.");
-	return configuration;
+	const answer = selection?.answers?.gemini_configuration;
+	const configuration = GEMINI_CONFIGURATIONS[answer?.choice];
+	if (!configuration || !Number.isFinite(answer?.confidence) || !answer?.probabilities || Array.isArray(answer.probabilities)) {
+		throw new Error("Jev returned an invalid Gemini configuration.");
+	}
+	return {
+		...configuration,
+		jev: {
+			choice: answer.choice,
+			confidence: answer.confidence,
+			probabilities: answer.probabilities,
+		},
+	};
 }
 
 export function resolveApiKey(env = process.env, authPath = join(getAgentDir(), "auth.json")) {
@@ -273,9 +282,13 @@ export function extractCitations(interaction) {
 	return Array.from(seen.values());
 }
 
-function formatHuman({ model, source, query, purpose, text, citations, stepTypes, showRaw }) {
+function formatHuman({ model, thinkingLevel, jev, source, query, purpose, text, citations, stepTypes, showRaw }) {
 	const lines = [];
-	lines.push(`Model: ${model} (auth: ${source})`);
+	lines.push(`Model: ${model} (thinking: ${thinkingLevel}, auth: ${source})`);
+	if (jev) {
+		const probabilities = Object.entries(jev.probabilities).map(([choice, probability]) => `${choice}=${probability}`).join(", ");
+		lines.push(`Jev: ${jev.choice} (confidence: ${jev.confidence}; probabilities: ${probabilities})`);
+	}
 	lines.push(`Query: ${query}`);
 	if (purpose) lines.push(`Purpose: ${purpose}`);
 	if (showRaw) {
@@ -311,6 +324,7 @@ export async function main(argv = process.argv.slice(2)) {
 
 	let model = args.model || DEFAULT_MODEL;
 	let thinkingLevel = args.thinkingLevel;
+	let jev;
 	const typesafeCredentials = resolveTypesafeApiKey();
 	if (typesafeCredentials) {
 		const selectionSignal =
@@ -328,7 +342,10 @@ export async function main(argv = process.argv.slice(2)) {
 			});
 			const payload = await res.text();
 			if (!res.ok) throw new Error(`Jev selection request failed (${res.status}): ${payload}`);
-			({ model, thinkingLevel } = selectGeminiConfiguration(JSON.parse(payload)));
+			const configuration = selectGeminiConfiguration(JSON.parse(payload));
+			model = configuration.model;
+			thinkingLevel = configuration.thinkingLevel;
+			jev = configuration.jev;
 		} catch (err) {
 			console.error(`Error: ${err?.message || String(err)}`);
 			return 1;
@@ -379,7 +396,7 @@ export async function main(argv = process.argv.slice(2)) {
 	if (args.json) {
 		console.log(
 			JSON.stringify(
-				{ model, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
+				{ model, thinkingLevel, jev, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
 				null,
 				2,
 			),
@@ -390,6 +407,8 @@ export async function main(argv = process.argv.slice(2)) {
 	console.log(
 		formatHuman({
 			model,
+			thinkingLevel,
+			jev,
 			source,
 			query: args.query,
 			purpose: args.purpose,
