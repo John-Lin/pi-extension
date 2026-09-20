@@ -84,6 +84,47 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 	});
 
 	if (tool === "google_search") {
+		test("gemini-web-search preserves explicit model and thinking flags without a Jev key", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			const requests = captureRequests(t, [Response.json(sample)]);
+			assert.equal(await module.main(["test query", "--model", "gemini-3.8-flash", "--thinking", "low", "--json"]), 0);
+			assert.equal(requests.length, 1);
+			const googleRequest = JSON.parse(requests[0].body as string);
+			assert.equal(googleRequest.model, "gemini-3.8-flash");
+			assert.deepEqual(googleRequest.generation_config, { thinking_level: "low" });
+			assert.deepEqual(stderr, []);
+			assert.equal(JSON.parse(stdout[0]).model, "gemini-3.8-flash");
+		});
+
+		test("gemini-web-search applies Jev's Choice before making the Google request", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			const requests = captureRequests(t, [
+				Response.json({ answers: { gemini_configuration: { choice: "flash_3_1_flash_lite_minimal" } } }),
+				Response.json(sample),
+			]);
+			assert.equal(await module.main(["test query", "--model", "ignored", "--thinking", "high", "--json"]), 0);
+			assert.equal(requests.length, 2);
+			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[0].headers.get("authorization"), "Bearer typesafe-test-key");
+			assert.deepEqual(JSON.parse(requests[0].body as string).state, { query: "test query" });
+			const googleRequest = JSON.parse(requests[1].body as string);
+			assert.equal(googleRequest.model, "gemini-3.1-flash-lite");
+			assert.deepEqual(googleRequest.generation_config, { thinking_level: "minimal" });
+			assert.equal(JSON.parse(stdout[0]).model, "gemini-3.1-flash-lite");
+			assert.deepEqual(stderr, []);
+		});
+
+		test("gemini-web-search reports Jev selection failures instead of silently using a fallback", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			const requests = captureRequests(t, [new Response("invalid TypeSafe key", { status: 401 })]);
+			assert.equal(await module.main(["test query"]), 1);
+			assert.equal(requests.length, 1);
+			assert.deepEqual(stdout, []);
+			assert.deepEqual(stderr, ["Error: Jev selection request failed (401): invalid TypeSafe key"]);
+		});
+
 		test(`${skill} rejects an unmatched grounding error beside a successful search`, async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			const failedResult = { type: "google_search_result", call_id: "unrelated", is_error: true, result: [] };

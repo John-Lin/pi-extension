@@ -6,7 +6,9 @@ export function captureOutput(t: TestContext) {
 	const stdout: string[] = [];
 	const stderr: string[] = [];
 	const env = process.env;
-	process.env = { ...env, GEMINI_API_KEY: "google-test-key" };
+	const testEnv = { ...env, GEMINI_API_KEY: "google-test-key" };
+	delete testEnv.TYPESAFE_API_KEY;
+	process.env = testEnv;
 	t.after(() => { process.env = env; });
 	t.mock.method(console, "log", (...args: unknown[]) => stdout.push(format(...args)));
 	t.mock.method(console, "error", (...args: unknown[]) => stderr.push(format(...args)));

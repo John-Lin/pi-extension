@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import {
+import * as geminiSearch from "../skills/gemini-web-search/search.mjs";
+
+const {
 	INTERACTIONS_URL,
 	buildAuthHeaders,
 	buildPrompt,
@@ -15,7 +17,7 @@ import {
 	parseArgs,
 	resolveApiKey,
 	usage,
-} from "../skills/gemini-web-search/search.mjs";
+} = geminiSearch;
 
 const sample = JSON.parse(
 	readFileSync(new URL("../skills/gemini-web-search/fixtures/sample-interaction.json", import.meta.url), "utf8"),
@@ -29,6 +31,10 @@ function tempAuthFile(contents: string): string {
 
 test("the endpoint is Google AI Studio directly, not a gateway", () => {
 	assert.equal(INTERACTIONS_URL, "https://generativelanguage.googleapis.com/v1beta/interactions");
+});
+
+test("the Jev selection endpoint is TypeSafe directly", () => {
+	assert.equal(geminiSearch.TYPESAFE_SYSTEM_ONE_URL, "https://api.typesafe.ai/v1/systemone");
 });
 
 test("parseArgs collects the query and defaults", () => {
@@ -84,6 +90,16 @@ test("missing credentials are reported with the env var to set", () => {
 	assert.throws(() => resolveApiKey({}, "/nonexistent/auth.json"), /GEMINI_API_KEY/);
 });
 
+test("resolveTypesafeApiKey leaves Jev selection disabled when its key is absent", () => {
+	assert.equal(typeof geminiSearch.resolveTypesafeApiKey, "function");
+	if (typeof geminiSearch.resolveTypesafeApiKey !== "function") return;
+	assert.equal(geminiSearch.resolveTypesafeApiKey({}), undefined);
+	assert.deepEqual(geminiSearch.resolveTypesafeApiKey({ TYPESAFE_API_KEY: "typesafe-key" }), {
+		apiKey: "typesafe-key",
+		source: "env:TYPESAFE_API_KEY",
+	});
+});
+
 test("a malformed auth.json is reported as malformed, not as missing credentials", () => {
 	const path = tempAuthFile("{ not json");
 	assert.throws(() => resolveApiKey({}, path), new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -114,6 +130,42 @@ test("buildRequestBody enables google_search grounding and carries the prompt", 
 	assert.equal(body.store, false, "one-shot searches must opt out of interaction storage");
 	assert.ok(body.input.includes("latest node lts"));
 	assert.ok(body.input.includes("upgrade plan"));
+});
+
+test("buildThinkingSelectionRequest asks Jev to choose one of the three supported Gemini configurations", () => {
+	assert.equal(typeof geminiSearch.buildThinkingSelectionRequest, "function");
+	if (typeof geminiSearch.buildThinkingSelectionRequest !== "function") return;
+	const request = geminiSearch.buildThinkingSelectionRequest("compare competing database migration strategies");
+	assert.deepEqual(request.state, { query: "compare competing database migration strategies" });
+	assert.equal(request.model, "jev-latest");
+	assert.deepEqual(Object.keys(request.questions.gemini_configuration.criteria), [
+		"flash_3_8_medium",
+		"flash_3_8_low",
+		"flash_3_1_flash_lite_minimal",
+	]);
+	assert.equal(request.questions.gemini_configuration.type, "choice");
+});
+
+test("selectGeminiConfiguration converts every Jev Choice to its Gemini model and thinking level", () => {
+	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
+	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
+	const cases = [
+		["flash_3_8_medium", { model: "gemini-3.8-flash", thinkingLevel: "medium" }],
+		["flash_3_8_low", { model: "gemini-3.8-flash", thinkingLevel: "low" }],
+		["flash_3_1_flash_lite_minimal", { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" }],
+	] as const;
+	for (const [choice, expected] of cases) {
+		assert.deepEqual(geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice } } }), expected);
+	}
+});
+
+test("selectGeminiConfiguration rejects an invalid Jev Choice", () => {
+	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
+	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
+	assert.throws(
+		() => geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice: "unknown" } } }),
+		/invalid Gemini configuration/i,
+	);
 });
 
 test("extractText pulls model_output text from a real interaction", () => {

@@ -15,7 +15,9 @@ import { pathToFileURL } from "node:url";
 import { validateInteraction } from "./gemini-interactions.mjs";
 
 export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+export const TYPESAFE_SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
 const TOKEN_ENV = "GEMINI_API_KEY";
+const TYPESAFE_TOKEN_ENV = "TYPESAFE_API_KEY";
 const AUTH_HEADER = "x-goog-api-key";
 
 // Pi stores credentials in auth.json keyed by provider name. The built-in
@@ -26,6 +28,12 @@ const DEFAULT_MODEL = "gemini-3.8-flash";
 const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
+
+const GEMINI_CONFIGURATIONS = {
+	flash_3_8_medium: { model: "gemini-3.8-flash", thinkingLevel: "medium" },
+	flash_3_8_low: { model: "gemini-3.8-flash", thinkingLevel: "low" },
+	flash_3_1_flash_lite_minimal: { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" },
+};
 
 function parseTimeout(raw, fallback) {
 	if (raw === undefined || raw === "") return fallback;
@@ -130,6 +138,36 @@ function resolveConfigValue(value, env) {
 		}
 	}
 	return env[value] || value;
+}
+
+export function resolveTypesafeApiKey(env = process.env) {
+	const apiKey = env[TYPESAFE_TOKEN_ENV];
+	return apiKey ? { apiKey, source: `env:${TYPESAFE_TOKEN_ENV}` } : undefined;
+}
+
+export function buildThinkingSelectionRequest(query) {
+	return {
+		state: { query },
+		model: "jev-latest",
+		questions: {
+			gemini_configuration: {
+				type: "choice",
+				instructions: "Choose the Gemini configuration that best serves the user's search request in `query`. Use a detailed answer for analysis, comparison, planning, troubleshooting, synthesis, or multiple constraints. Use a fast answer for straightforward factual requests. Use the fastest answer only for simple, well-defined requests that explicitly prioritize speed or brevity.",
+				criteria: {
+					flash_3_8_medium: "Detailed answer: Gemini 3.8 Flash with medium thinking for nuanced, thorough research.",
+					flash_3_8_low: "Fast answer: Gemini 3.8 Flash with low thinking for straightforward research that still benefits from strong quality.",
+					flash_3_1_flash_lite_minimal: "Fastest answer: Gemini 3.1 Flash-Lite with minimal thinking for a simple, well-defined request where speed or brevity is the priority.",
+				},
+			},
+		},
+	};
+}
+
+export function selectGeminiConfiguration(selection) {
+	const choice = selection?.answers?.gemini_configuration?.choice;
+	const configuration = GEMINI_CONFIGURATIONS[choice];
+	if (!configuration) throw new Error("Jev returned an invalid Gemini configuration.");
+	return configuration;
 }
 
 export function resolveApiKey(env = process.env, authPath = join(getAgentDir(), "auth.json")) {
@@ -271,7 +309,31 @@ export async function main(argv = process.argv.slice(2)) {
 		return 1;
 	}
 
-	const model = args.model || DEFAULT_MODEL;
+	let model = args.model || DEFAULT_MODEL;
+	let thinkingLevel = args.thinkingLevel;
+	const typesafeCredentials = resolveTypesafeApiKey();
+	if (typesafeCredentials) {
+		const selectionSignal =
+			typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
+		try {
+			const res = await fetch(TYPESAFE_SYSTEM_ONE_URL, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					accept: "application/json",
+					authorization: `Bearer ${typesafeCredentials.apiKey}`,
+				},
+				body: JSON.stringify(buildThinkingSelectionRequest(args.query)),
+				signal: selectionSignal,
+			});
+			const payload = await res.text();
+			if (!res.ok) throw new Error(`Jev selection request failed (${res.status}): ${payload}`);
+			({ model, thinkingLevel } = selectGeminiConfiguration(JSON.parse(payload)));
+		} catch (err) {
+			console.error(`Error: ${err?.message || String(err)}`);
+			return 1;
+		}
+	}
 
 	const signal =
 		typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
@@ -291,7 +353,7 @@ export async function main(argv = process.argv.slice(2)) {
 					model,
 					query: args.query,
 					purpose: args.purpose,
-					thinkingLevel: args.thinkingLevel,
+					thinkingLevel,
 				}),
 			),
 			signal,
