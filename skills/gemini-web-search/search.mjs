@@ -159,11 +159,11 @@ export function buildThinkingSelectionRequest(query) {
 		questions: {
 			gemini_configuration: {
 				type: "choice",
-				instructions: "Choose the Gemini configuration that best serves the user's search request in `query`. Use a detailed answer for analysis, comparison, planning, troubleshooting, synthesis, or multiple constraints. Use a fast answer for straightforward factual requests. Use the fastest answer only for simple, well-defined requests that explicitly prioritize speed or brevity.",
+				instructions: "Choose the lowest-latency Gemini configuration that can reliably answer the user's search request in `query`. Judge the required research complexity, not the desired answer length. When both Flash-Lite and Flash low would be sufficient, choose Flash-Lite.",
 				criteria: {
-					flash_3_8_medium: "Detailed answer: Gemini 3.8 Flash with medium thinking for nuanced, thorough research.",
-					flash_3_8_low: "Fast answer: Gemini 3.8 Flash with low thinking for straightforward research that still benefits from strong quality.",
-					flash_3_1_flash_lite_minimal: "Fastest answer: Gemini 3.1 Flash-Lite with minimal thinking for a simple, well-defined request where speed or brevity is the priority.",
+					flash_3_8_medium: "Gemini 3.8 Flash with medium thinking for analysis, comparison, planning, troubleshooting, conflicting evidence, broad synthesis, or multiple interacting constraints.",
+					flash_3_8_low: "Gemini 3.8 Flash with low thinking for several related facts, moderate cross-checking, resolving some ambiguity, or organizing results without deep analysis.",
+					flash_3_1_flash_lite_minimal: "Gemini 3.1 Flash-Lite with minimal thinking for direct lookup of one or a few concrete facts, such as a version, date, name, price, location, or yes/no status. Requiring an official source or citations alone does not make a request complex.",
 				},
 			},
 		},
