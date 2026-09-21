@@ -28,12 +28,19 @@ const DEFAULT_MODEL = "gemini-3.8-flash";
 const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_RETRY_DELAY_MS = 1000;
 
 const GEMINI_CONFIGURATIONS = {
 	flash_3_8_medium: { model: "gemini-3.8-flash", thinkingLevel: "medium" },
 	flash_3_8_low: { model: "gemini-3.8-flash", thinkingLevel: "low" },
 	flash_3_1_flash_lite_minimal: { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" },
 };
+
+export function parseRetryAfterMs(raw) {
+	if (raw === null || raw === "") return DEFAULT_RETRY_DELAY_MS;
+	const seconds = Number(raw);
+	return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : DEFAULT_RETRY_DELAY_MS;
+}
 
 function parseTimeout(raw, fallback) {
 	if (raw === undefined || raw === "") return fallback;
@@ -332,25 +339,41 @@ export async function main(argv = process.argv.slice(2)) {
 		const selectionSignal =
 			typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
 		try {
-			const res = await fetch(TYPESAFE_SYSTEM_ONE_URL, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					accept: "application/json",
-					authorization: `Bearer ${typesafeCredentials.apiKey}`,
-				},
-				body: JSON.stringify(buildThinkingSelectionRequest(args.query)),
-				signal: selectionSignal,
-			});
-			const payload = await res.text();
-			if (!res.ok) throw new Error(`Jev selection request failed (${res.status}): ${payload}`);
-			const configuration = selectGeminiConfiguration(JSON.parse(payload));
+			let selection;
+			for (let attempt = 0; attempt < 2; attempt++) {
+				let res;
+				try {
+					res = await fetch(TYPESAFE_SYSTEM_ONE_URL, {
+						method: "POST",
+						headers: {
+							"content-type": "application/json",
+							accept: "application/json",
+							authorization: `Bearer ${typesafeCredentials.apiKey}`,
+						},
+						body: JSON.stringify(buildThinkingSelectionRequest(args.query)),
+						signal: selectionSignal,
+					});
+				} catch (err) {
+					if (attempt === 0) continue;
+					throw err;
+				}
+				const payload = await res.text();
+				if (res.ok) {
+					selection = JSON.parse(payload);
+					break;
+				}
+				if (attempt === 0 && (res.status === 429 || res.status === 529)) {
+					await new Promise((resolve) => setTimeout(resolve, parseRetryAfterMs(res.headers.get("retry-after"))));
+					continue;
+				}
+				throw new Error(`Jev selection request failed (${res.status}): ${payload}`);
+			}
+			const configuration = selectGeminiConfiguration(selection);
 			model = configuration.model;
 			thinkingLevel = configuration.thinkingLevel;
 			jev = configuration.jev;
 		} catch (err) {
-			console.error(`Error: ${err?.message || String(err)}`);
-			return 1;
+			console.error(`Warning: Jev selection failed; continuing without Jev. ${err?.message || String(err)}`);
 		}
 	}
 

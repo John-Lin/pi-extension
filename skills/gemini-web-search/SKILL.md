@@ -40,5 +40,6 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 - A 429 means the search-grounding quota is exhausted — report it rather than
   switching to another model.
 - With `TYPESAFE_API_KEY`, Jev chooses between Gemini 3.8 Flash at `medium` or
-  `low`, and Gemini 3.1 Flash-Lite at `minimal`. Without it, `--model` and
-  `--thinking` continue to control the Google request.
+  `low`, and Gemini 3.1 Flash-Lite at `minimal`. Transient selection failures
+  are retried once; if selection still fails, the script warns and continues
+  without Jev. Without it, `--model` and `--thinking` control the Google request.

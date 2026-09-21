@@ -90,6 +90,15 @@ test("missing credentials are reported with the env var to set", () => {
 	assert.throws(() => resolveApiKey({}, "/nonexistent/auth.json"), /GEMINI_API_KEY/);
 });
 
+test("parseRetryAfterMs uses a short default unless the server provides seconds", () => {
+	assert.equal(typeof geminiSearch.parseRetryAfterMs, "function");
+	if (typeof geminiSearch.parseRetryAfterMs !== "function") return;
+	assert.equal(geminiSearch.parseRetryAfterMs(null), 1000);
+	assert.equal(geminiSearch.parseRetryAfterMs("invalid"), 1000);
+	assert.equal(geminiSearch.parseRetryAfterMs("0"), 0);
+	assert.equal(geminiSearch.parseRetryAfterMs("2.5"), 2500);
+});
+
 test("resolveTypesafeApiKey leaves Jev selection disabled when its key is absent", () => {
 	assert.equal(typeof geminiSearch.resolveTypesafeApiKey, "function");
 	if (typeof geminiSearch.resolveTypesafeApiKey !== "function") return;

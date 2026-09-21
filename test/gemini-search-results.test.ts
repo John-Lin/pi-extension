@@ -162,14 +162,101 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.deepEqual(stderr, []);
 		});
 
-		test("gemini-web-search reports Jev selection failures instead of silently using a fallback", async (t) => {
+		test("gemini-web-search retries a transient Jev selection failure before searching", async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
-			const requests = captureRequests(t, [new Response("invalid TypeSafe key", { status: 401 })]);
-			assert.equal(await module.main(["test query"]), 1);
-			assert.equal(requests.length, 1);
-			assert.deepEqual(stdout, []);
-			assert.deepEqual(stderr, ["Error: Jev selection request failed (401): invalid TypeSafe key"]);
+			const requests = captureRequests(t, [
+				new Response("rate limited", { status: 429, headers: { "retry-after": "0" } }),
+				Response.json({
+					answers: {
+						gemini_configuration: {
+							choice: "flash_3_8_low",
+							confidence: 0.9,
+							probabilities: {
+								flash_3_8_medium: 0.05,
+								flash_3_8_low: 0.9,
+								flash_3_1_flash_lite_minimal: 0.05,
+							},
+						},
+					},
+				}),
+				Response.json(sample),
+			]);
+			assert.equal(await module.main(["test query", "--json"]), 0);
+			assert.equal(requests.length, 3);
+			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.8-flash");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "low");
+			assert.deepEqual(stderr, []);
+		});
+
+		test("gemini-web-search retries a Jev network failure before searching", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			const requests = captureRequests(t, [
+				new Error("connection reset"),
+				Response.json({
+					answers: {
+						gemini_configuration: {
+							choice: "flash_3_1_flash_lite_minimal",
+							confidence: 0.9,
+							probabilities: {
+								flash_3_8_medium: 0.05,
+								flash_3_8_low: 0.05,
+								flash_3_1_flash_lite_minimal: 0.9,
+							},
+						},
+					},
+				}),
+				Response.json(sample),
+			]);
+			assert.equal(await module.main(["test query", "--json"]), 0);
+			assert.equal(requests.length, 3);
+			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.1-flash-lite");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "minimal");
+			assert.deepEqual(stderr, []);
+		});
+
+		test("gemini-web-search falls back to Gemini defaults after transient Jev retries fail", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			const overloaded = () => new Response("temporarily overloaded", {
+				status: 529,
+				headers: { "retry-after": "0" },
+			});
+			const requests = captureRequests(t, [overloaded(), overloaded(), Response.json(sample)]);
+			assert.equal(await module.main(["test query", "--json"]), 0);
+			assert.equal(requests.length, 3);
+			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[2].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.8-flash");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "medium");
+			assert.equal(JSON.parse(stdout[0]).jev, undefined);
+			assert.deepEqual(stderr, [
+				"Warning: Jev selection failed; continuing without Jev. Jev selection request failed (529): temporarily overloaded",
+			]);
+		});
+
+		test("gemini-web-search falls back without retrying a non-transient Jev failure", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			const requests = captureRequests(t, [
+				new Response("invalid TypeSafe key", { status: 401 }),
+				Response.json(sample),
+			]);
+			assert.equal(await module.main(["test query", "--json"]), 0);
+			assert.equal(requests.length, 2);
+			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[1].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+			assert.equal(JSON.parse(requests[1].body as string).model, "gemini-3.8-flash");
+			assert.equal(JSON.parse(stdout[0]).jev, undefined);
+			assert.deepEqual(stderr, [
+				"Warning: Jev selection failed; continuing without Jev. Jev selection request failed (401): invalid TypeSafe key",
+			]);
 		});
 
 		test(`${skill} rejects an unmatched grounding error beside a successful search`, async (t) => {
