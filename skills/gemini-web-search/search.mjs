@@ -159,11 +159,11 @@ export function buildThinkingSelectionRequest(query) {
 		questions: {
 			gemini_configuration: {
 				type: "choice",
-				instructions: "Choose the lowest-latency Gemini configuration that can reliably answer the user's search request in `query`. Direct lookup and bounded extraction default to Flash-Lite, even when the result has multiple items. Choose a stronger configuration only when the query requires interpretation or reasoning beyond retrieval. When both Flash-Lite and Flash low would be sufficient, choose Flash-Lite.",
+				instructions: "Choose the lowest-latency Gemini configuration that can reliably answer the user's search request in `query`. Judge the required research complexity, not the desired answer length. When both Flash-Lite and Flash low would be sufficient, choose Flash-Lite.",
 				criteria: {
 					flash_3_8_medium: "Gemini 3.8 Flash with medium thinking for analysis, comparison, planning, troubleshooting, conflicting evidence, broad synthesis, or multiple interacting constraints.",
-					flash_3_8_low: "Gemini 3.8 Flash with low thinking for interpreting findings, resolving material ambiguity, reconciling conflicting sources, inferring missing details, or synthesizing conclusions beyond direct extraction.",
-					flash_3_1_flash_lite_minimal: "Gemini 3.1 Flash-Lite with minimal thinking for direct factual lookup or bounded extraction or listing from one or a few authoritative sources. This includes multiple rows or fields, date filtering, and citations when no interpretation or conflict resolution is required.",
+					flash_3_8_low: "Gemini 3.8 Flash with low thinking for several related facts, moderate cross-checking, resolving some ambiguity, or organizing results without deep analysis.",
+					flash_3_1_flash_lite_minimal: "Gemini 3.1 Flash-Lite with minimal thinking for direct lookup of one or a few concrete facts, such as a version, date, name, price, location, or yes/no status. Requiring an official source or citations alone does not make a request complex.",
 				},
 			},
 		},
