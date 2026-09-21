@@ -26,6 +26,8 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 
 - **Always pass `--purpose`.** The summary is written for it: each finding is
   reported as why it matters for that purpose.
+- **Omit `--model` and `--thinking` by default.** Jev selects them when
+  configured; otherwise the script uses its Gemini defaults.
 
 ## Notes
 
