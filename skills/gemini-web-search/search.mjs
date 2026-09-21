@@ -336,12 +336,13 @@ export async function main(argv = process.argv.slice(2)) {
 	let jev;
 	const typesafeCredentials = resolveTypesafeApiKey();
 	if (typesafeCredentials) {
-		const selectionSignal =
-			typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
 		try {
 			let selection;
 			for (let attempt = 0; attempt < 2; attempt++) {
+				const selectionSignal =
+					typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
 				let res;
+				let payload;
 				try {
 					res = await fetch(TYPESAFE_SYSTEM_ONE_URL, {
 						method: "POST",
@@ -353,11 +354,11 @@ export async function main(argv = process.argv.slice(2)) {
 						body: JSON.stringify(buildThinkingSelectionRequest(args.query)),
 						signal: selectionSignal,
 					});
+					payload = await res.text();
 				} catch (err) {
 					if (attempt === 0) continue;
 					throw err;
 				}
-				const payload = await res.text();
 				if (res.ok) {
 					selection = JSON.parse(payload);
 					break;

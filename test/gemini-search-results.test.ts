@@ -215,8 +215,43 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(requests.length, 3);
 			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
 			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
+			assert.notEqual(requests[0].signal, requests[1].signal);
 			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.1-flash-lite");
 			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "minimal");
+			assert.deepEqual(stderr, []);
+		});
+
+		test("gemini-web-search retries when the Jev response body fails", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			const brokenBody = new ReadableStream({
+				start(controller) {
+					controller.error(new Error("connection reset while reading"));
+				},
+			});
+			const requests = captureRequests(t, [
+				new Response(brokenBody),
+				Response.json({
+					answers: {
+						gemini_configuration: {
+							choice: "flash_3_8_low",
+							confidence: 0.9,
+							probabilities: {
+								flash_3_8_medium: 0.05,
+								flash_3_8_low: 0.9,
+								flash_3_1_flash_lite_minimal: 0.05,
+							},
+						},
+					},
+				}),
+				Response.json(sample),
+			]);
+			assert.equal(await module.main(["test query", "--json"]), 0);
+			assert.equal(requests.length, 3);
+			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.8-flash");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "low");
 			assert.deepEqual(stderr, []);
 		});
 
