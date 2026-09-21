@@ -159,12 +159,14 @@ test("buildThinkingSelectionRequest prefers the lowest-latency sufficient config
 	const question = geminiSearch.buildThinkingSelectionRequest("latest stable Python version")
 		.questions.gemini_configuration;
 	assert.match(question.instructions, /lowest-latency Gemini configuration/i);
+	assert.match(question.instructions, /direct lookup and bounded extraction default to Flash-Lite/i);
 	assert.match(question.instructions, /When both Flash-Lite and Flash low would be sufficient, choose Flash-Lite/i);
-	assert.match(question.criteria.flash_3_1_flash_lite_minimal, /one or a few concrete facts/i);
-	assert.match(question.criteria.flash_3_1_flash_lite_minimal, /official source or citations alone does not make a request complex/i);
-	assert.match(question.criteria.flash_3_8_low, /several related facts/i);
+	assert.match(question.criteria.flash_3_1_flash_lite_minimal, /bounded extraction or listing from one or a few authoritative sources/i);
+	assert.match(question.criteria.flash_3_1_flash_lite_minimal, /multiple rows or fields, date filtering, and citations/i);
+	assert.match(question.criteria.flash_3_8_low, /resolving material ambiguity/i);
+	assert.match(question.criteria.flash_3_8_low, /reconciling conflicting sources/i);
+	assert.doesNotMatch(question.criteria.flash_3_8_low, /several related facts/i);
 	assert.match(question.criteria.flash_3_8_medium, /analysis, comparison, planning, troubleshooting/i);
-	assert.doesNotMatch(question.instructions, /explicitly prioritize speed or brevity/i);
 });
 
 test("selectGeminiConfiguration converts every Jev Choice to its Gemini model, thinking level, and score", () => {
