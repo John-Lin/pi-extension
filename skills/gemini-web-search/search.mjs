@@ -165,7 +165,9 @@ export function buildThinkingSelectionRequest(query) {
 
 export function selectGeminiConfiguration(selection) {
 	const answer = selection?.answers?.gemini_configuration;
-	const configuration = GEMINI_CONFIGURATIONS[answer?.choice];
+	const configuration = Object.hasOwn(GEMINI_CONFIGURATIONS, answer?.choice)
+		? GEMINI_CONFIGURATIONS[answer.choice]
+		: undefined;
 	if (!configuration || !Number.isFinite(answer?.confidence) || !answer?.probabilities || Array.isArray(answer.probabilities)) {
 		throw new Error("Jev returned an invalid Gemini configuration.");
 	}

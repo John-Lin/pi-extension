@@ -173,6 +173,12 @@ test("selectGeminiConfiguration rejects an invalid Jev Choice or score", () => {
 		/invalid Gemini configuration/i,
 	);
 	assert.throws(
+		() => geminiSearch.selectGeminiConfiguration({
+			answers: { gemini_configuration: { choice: "constructor", confidence: 1, probabilities: { constructor: 1 } } },
+		}),
+		/invalid Gemini configuration/i,
+	);
+	assert.throws(
 		() => geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice: "flash_3_8_low" } } }),
 		/invalid Gemini configuration/i,
 	);
