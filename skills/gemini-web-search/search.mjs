@@ -31,9 +31,9 @@ const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 
 const GEMINI_CONFIGURATIONS = {
-	flash_3_8_medium: { model: "gemini-3.8-flash", thinkingLevel: "medium" },
-	flash_3_8_low: { model: "gemini-3.8-flash", thinkingLevel: "low" },
-	flash_3_1_flash_lite_minimal: { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" },
+	direct_retrieval: { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" },
+	light_reasoning: { model: "gemini-3.8-flash", thinkingLevel: "low" },
+	deep_reasoning: { model: "gemini-3.8-flash", thinkingLevel: "medium" },
 };
 
 export function parseRetryAfterMs(raw) {
@@ -157,13 +157,38 @@ export function buildThinkingSelectionRequest(query) {
 		state: { query },
 		model: "jev-latest",
 		questions: {
-			gemini_configuration: {
+			required_work: {
 				type: "choice",
-				instructions: "Choose the lowest-latency Gemini configuration that can reliably answer the user's search request in `query`. Judge the required research complexity, not the desired answer length. When both Flash-Lite and Flash low would be sufficient, choose Flash-Lite.",
+				instructions: {
+					question: "What kind of work is required to answer `query` reliably?",
+					focus: "Classify the work required, not the answer length, number of returned items, citations, or source authority.",
+				},
 				criteria: {
-					flash_3_8_medium: "Gemini 3.8 Flash with medium thinking for analysis, comparison, planning, troubleshooting, conflicting evidence, broad synthesis, or multiple interacting constraints.",
-					flash_3_8_low: "Gemini 3.8 Flash with low thinking for several related facts, moderate cross-checking, resolving some ambiguity, or organizing results without deep analysis.",
-					flash_3_1_flash_lite_minimal: "Gemini 3.1 Flash-Lite with minimal thinking for direct lookup of one or a few concrete facts, such as a version, date, name, price, location, or yes/no status. Requiring an official source or citations alone does not make a request complex.",
+					direct_retrieval: {
+						what: "Find, copy, filter, or list facts explicitly available in sources.",
+						not_for: "Interpretation, inference, reconciling conflicting information, or recommendations.",
+						examples: [
+							"What is the latest stable Python version?",
+							"List the remaining 2026 NYSE and Nasdaq closure and early-close dates.",
+							"Is a typhoon warning active today?",
+						],
+					},
+					light_reasoning: {
+						what: "Interpret findings, compare related evidence, resolve limited ambiguity, reach a straightforward conclusion, or handle a simple planning or troubleshooting task.",
+						not_for: "Pure factual extraction or work with multiple interacting constraints, substantial conflicts, or several plausible causes.",
+						examples: [
+							"Explain differences between the NYSE and Nasdaq holiday schedules.",
+							"Identify a likely fix for a single clear configuration error.",
+						],
+					},
+					deep_reasoning: {
+						what: "Perform broad synthesis, multi-constraint comparison, multi-step planning, or troubleshoot problems with interacting constraints, substantial conflicting evidence, or multiple plausible causes.",
+						not_for: "Direct retrieval, simple interpretation, or a bounded task with one clear issue.",
+						examples: [
+							"Compare database migration strategies and recommend a rollout plan.",
+							"Troubleshoot an intermittent deployment failure with several plausible causes.",
+						],
+					},
 				},
 			},
 		},
@@ -171,7 +196,7 @@ export function buildThinkingSelectionRequest(query) {
 }
 
 export function selectGeminiConfiguration(selection) {
-	const answer = selection?.answers?.gemini_configuration;
+	const answer = selection?.answers?.required_work;
 	const configuration = Object.hasOwn(GEMINI_CONFIGURATIONS, answer?.choice)
 		? GEMINI_CONFIGURATIONS[answer.choice]
 		: undefined;

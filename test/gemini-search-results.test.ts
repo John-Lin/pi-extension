@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { captureOutput, captureRequests } from "./helpers/gemini-cli.ts";
 
+function jevResponse(choice: string, confidence: number, probabilities: Record<string, number>) {
+	return Response.json({ answers: { required_work: { choice, confidence, probabilities } } });
+}
+
 // In-process entry-point unit tests, with only external HTTP replaced.
 // Fixtures are recorded Google responses; failure cases alter the relevant field.
 for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-maps-search", "google_maps"]]) {
@@ -100,18 +104,10 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			const { stdout, stderr } = captureOutput(t);
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			const requests = captureRequests(t, [
-				Response.json({
-					answers: {
-						gemini_configuration: {
-							choice: "flash_3_1_flash_lite_minimal",
-							confidence: 0.82,
-							probabilities: {
-								flash_3_8_medium: 0.08,
-								flash_3_8_low: 0.1,
-								flash_3_1_flash_lite_minimal: 0.82,
-							},
-						},
-					},
+				jevResponse("direct_retrieval", 0.82, {
+					deep_reasoning: 0.08,
+					light_reasoning: 0.1,
+					direct_retrieval: 0.82,
 				}),
 				Response.json(sample),
 			]);
@@ -126,12 +122,12 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(JSON.parse(stdout[0]).model, "gemini-3.1-flash-lite");
 			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "minimal");
 			assert.deepEqual(JSON.parse(stdout[0]).jev, {
-				choice: "flash_3_1_flash_lite_minimal",
+				choice: "direct_retrieval",
 				confidence: 0.82,
 				probabilities: {
-					flash_3_8_medium: 0.08,
-					flash_3_8_low: 0.1,
-					flash_3_1_flash_lite_minimal: 0.82,
+					deep_reasoning: 0.08,
+					light_reasoning: 0.1,
+					direct_retrieval: 0.82,
 				},
 			});
 			assert.deepEqual(stderr, []);
@@ -141,24 +137,16 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			const { stdout, stderr } = captureOutput(t);
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			captureRequests(t, [
-				Response.json({
-					answers: {
-						gemini_configuration: {
-							choice: "flash_3_8_low",
-							confidence: 0.78,
-							probabilities: {
-								flash_3_8_medium: 0.12,
-								flash_3_8_low: 0.78,
-								flash_3_1_flash_lite_minimal: 0.1,
-							},
-						},
-					},
+				jevResponse("light_reasoning", 0.78, {
+					deep_reasoning: 0.12,
+					light_reasoning: 0.78,
+					direct_retrieval: 0.1,
 				}),
 				Response.json(sample),
 			]);
 			assert.equal(await module.main(["test query"]), 0);
 			assert.match(stdout[0], /^Model: gemini-3\.8-flash \(thinking: low, auth: env:GEMINI_API_KEY\)$/m);
-			assert.match(stdout[0], /^Jev: flash_3_8_low \(confidence: 0\.78; probabilities: flash_3_8_medium=0\.12, flash_3_8_low=0\.78, flash_3_1_flash_lite_minimal=0\.1\)$/m);
+			assert.match(stdout[0], /^Jev: light_reasoning \(confidence: 0\.78; probabilities: deep_reasoning=0\.12, light_reasoning=0\.78, direct_retrieval=0\.1\)$/m);
 			assert.deepEqual(stderr, []);
 		});
 
@@ -167,18 +155,10 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			const requests = captureRequests(t, [
 				new Response("rate limited", { status: 429, headers: { "retry-after": "0" } }),
-				Response.json({
-					answers: {
-						gemini_configuration: {
-							choice: "flash_3_8_low",
-							confidence: 0.9,
-							probabilities: {
-								flash_3_8_medium: 0.05,
-								flash_3_8_low: 0.9,
-								flash_3_1_flash_lite_minimal: 0.05,
-							},
-						},
-					},
+				jevResponse("light_reasoning", 0.9, {
+					deep_reasoning: 0.05,
+					light_reasoning: 0.9,
+					direct_retrieval: 0.05,
 				}),
 				Response.json(sample),
 			]);
@@ -196,18 +176,10 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			const requests = captureRequests(t, [
 				new Error("connection reset"),
-				Response.json({
-					answers: {
-						gemini_configuration: {
-							choice: "flash_3_1_flash_lite_minimal",
-							confidence: 0.9,
-							probabilities: {
-								flash_3_8_medium: 0.05,
-								flash_3_8_low: 0.05,
-								flash_3_1_flash_lite_minimal: 0.9,
-							},
-						},
-					},
+				jevResponse("direct_retrieval", 0.9, {
+					deep_reasoning: 0.05,
+					light_reasoning: 0.05,
+					direct_retrieval: 0.9,
 				}),
 				Response.json(sample),
 			]);
@@ -231,18 +203,10 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			});
 			const requests = captureRequests(t, [
 				new Response(brokenBody),
-				Response.json({
-					answers: {
-						gemini_configuration: {
-							choice: "flash_3_8_low",
-							confidence: 0.9,
-							probabilities: {
-								flash_3_8_medium: 0.05,
-								flash_3_8_low: 0.9,
-								flash_3_1_flash_lite_minimal: 0.05,
-							},
-						},
-					},
+				jevResponse("light_reasoning", 0.9, {
+					deep_reasoning: 0.05,
+					light_reasoning: 0.9,
+					direct_retrieval: 0.05,
 				}),
 				Response.json(sample),
 			]);

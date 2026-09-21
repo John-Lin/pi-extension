@@ -141,44 +141,60 @@ test("buildRequestBody enables google_search grounding and carries the prompt", 
 	assert.ok(body.input.includes("upgrade plan"));
 });
 
-test("buildThinkingSelectionRequest asks Jev to choose one of the three supported Gemini configurations", () => {
+test("buildThinkingSelectionRequest asks Jev to classify the work using structured, contrastive criteria", () => {
 	assert.equal(typeof geminiSearch.buildThinkingSelectionRequest, "function");
 	if (typeof geminiSearch.buildThinkingSelectionRequest !== "function") return;
 	const request = geminiSearch.buildThinkingSelectionRequest("compare competing database migration strategies");
 	assert.deepEqual(request.state, { query: "compare competing database migration strategies" });
 	assert.equal(request.model, "jev-latest");
-	assert.deepEqual(Object.keys(request.questions.gemini_configuration.criteria), [
-		"flash_3_8_medium",
-		"flash_3_8_low",
-		"flash_3_1_flash_lite_minimal",
-	]);
-	assert.equal(request.questions.gemini_configuration.type, "choice");
+	assert.deepEqual(request.questions.required_work, {
+		type: "choice",
+		instructions: {
+			question: "What kind of work is required to answer `query` reliably?",
+			focus: "Classify the work required, not the answer length, number of returned items, citations, or source authority.",
+		},
+		criteria: {
+			direct_retrieval: {
+				what: "Find, copy, filter, or list facts explicitly available in sources.",
+				not_for: "Interpretation, inference, reconciling conflicting information, or recommendations.",
+				examples: [
+					"What is the latest stable Python version?",
+					"List the remaining 2026 NYSE and Nasdaq closure and early-close dates.",
+					"Is a typhoon warning active today?",
+				],
+			},
+			light_reasoning: {
+				what: "Interpret findings, compare related evidence, resolve limited ambiguity, reach a straightforward conclusion, or handle a simple planning or troubleshooting task.",
+				not_for: "Pure factual extraction or work with multiple interacting constraints, substantial conflicts, or several plausible causes.",
+				examples: [
+					"Explain differences between the NYSE and Nasdaq holiday schedules.",
+					"Identify a likely fix for a single clear configuration error.",
+				],
+			},
+			deep_reasoning: {
+				what: "Perform broad synthesis, multi-constraint comparison, multi-step planning, or troubleshoot problems with interacting constraints, substantial conflicting evidence, or multiple plausible causes.",
+				not_for: "Direct retrieval, simple interpretation, or a bounded task with one clear issue.",
+				examples: [
+					"Compare database migration strategies and recommend a rollout plan.",
+					"Troubleshoot an intermittent deployment failure with several plausible causes.",
+				],
+			},
+		},
+	});
 });
 
-test("buildThinkingSelectionRequest prefers the lowest-latency sufficient configuration", () => {
-	const question = geminiSearch.buildThinkingSelectionRequest("latest stable Python version")
-		.questions.gemini_configuration;
-	assert.match(question.instructions, /lowest-latency Gemini configuration/i);
-	assert.match(question.instructions, /When both Flash-Lite and Flash low would be sufficient, choose Flash-Lite/i);
-	assert.match(question.criteria.flash_3_1_flash_lite_minimal, /one or a few concrete facts/i);
-	assert.match(question.criteria.flash_3_1_flash_lite_minimal, /official source or citations alone does not make a request complex/i);
-	assert.match(question.criteria.flash_3_8_low, /several related facts/i);
-	assert.match(question.criteria.flash_3_8_medium, /analysis, comparison, planning, troubleshooting/i);
-	assert.doesNotMatch(question.instructions, /explicitly prioritize speed or brevity/i);
-});
-
-test("selectGeminiConfiguration converts every Jev Choice to its Gemini model, thinking level, and score", () => {
+test("selectGeminiConfiguration maps each work classification to its Gemini configuration", () => {
 	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
 	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
 	const cases = [
-		["flash_3_8_medium", { model: "gemini-3.8-flash", thinkingLevel: "medium" }],
-		["flash_3_8_low", { model: "gemini-3.8-flash", thinkingLevel: "low" }],
-		["flash_3_1_flash_lite_minimal", { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" }],
+		["direct_retrieval", { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" }],
+		["light_reasoning", { model: "gemini-3.8-flash", thinkingLevel: "low" }],
+		["deep_reasoning", { model: "gemini-3.8-flash", thinkingLevel: "medium" }],
 	] as const;
 	for (const [choice, configuration] of cases) {
-		const probabilities = { flash_3_8_medium: 0.1, flash_3_8_low: 0.2, flash_3_1_flash_lite_minimal: 0.7 };
+		const probabilities = { direct_retrieval: 0.7, light_reasoning: 0.2, deep_reasoning: 0.1 };
 		assert.deepEqual(geminiSearch.selectGeminiConfiguration({
-			answers: { gemini_configuration: { choice, confidence: 0.7, probabilities } },
+			answers: { required_work: { choice, confidence: 0.7, probabilities } },
 		}), {
 			...configuration,
 			jev: { choice, confidence: 0.7, probabilities },
@@ -190,17 +206,17 @@ test("selectGeminiConfiguration rejects an invalid Jev Choice or score", () => {
 	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
 	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
 	assert.throws(
-		() => geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice: "unknown" } } }),
+		() => geminiSearch.selectGeminiConfiguration({ answers: { required_work: { choice: "unknown" } } }),
 		/invalid Gemini configuration/i,
 	);
 	assert.throws(
 		() => geminiSearch.selectGeminiConfiguration({
-			answers: { gemini_configuration: { choice: "constructor", confidence: 1, probabilities: { constructor: 1 } } },
+			answers: { required_work: { choice: "constructor", confidence: 1, probabilities: { constructor: 1 } } },
 		}),
 		/invalid Gemini configuration/i,
 	);
 	assert.throws(
-		() => geminiSearch.selectGeminiConfiguration({ answers: { gemini_configuration: { choice: "flash_3_8_low" } } }),
+		() => geminiSearch.selectGeminiConfiguration({ answers: { required_work: { choice: "light_reasoning" } } }),
 		/invalid Gemini configuration/i,
 	);
 });
