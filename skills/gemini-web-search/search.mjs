@@ -399,6 +399,7 @@ export async function main(argv = process.argv.slice(2)) {
 			thinkingLevel = configuration.thinkingLevel;
 			jev = configuration.jev;
 		} catch (err) {
+			({ model, thinkingLevel } = GEMINI_CONFIGURATIONS.direct_retrieval);
 			console.error(`Warning: Jev selection failed; continuing without Jev. ${err?.message || String(err)}`);
 		}
 	}

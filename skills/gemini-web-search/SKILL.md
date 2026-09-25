@@ -41,5 +41,6 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
   switching to another model.
 - With `TYPESAFE_API_KEY`, Jev chooses between Gemini 3.8 Flash at `medium` or
   `low`, and Gemini 3.5 Flash-Lite at `high`. Transient selection failures
-  are retried once; if selection still fails, the script warns and continues
-  without Jev. Without it, `--model` and `--thinking` control the Google request.
+  are retried once; if selection still fails, the script warns and uses Gemini
+  3.5 Flash-Lite at `high` without Jev. Without it, `--model` and `--thinking`
+  control the Google request.

@@ -219,7 +219,7 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.deepEqual(stderr, []);
 		});
 
-		test("gemini-web-search falls back to Gemini defaults after transient Jev retries fail", async (t) => {
+		test("gemini-web-search uses the Flash-Lite fallback after transient Jev retries fail", async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			const overloaded = () => new Response("temporarily overloaded", {
@@ -232,15 +232,15 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
 			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
 			assert.equal(requests[2].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
-			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.8-flash");
-			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "medium");
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.5-flash-lite");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "high");
 			assert.equal(JSON.parse(stdout[0]).jev, undefined);
 			assert.deepEqual(stderr, [
 				"Warning: Jev selection failed; continuing without Jev. Jev selection request failed (529): temporarily overloaded",
 			]);
 		});
 
-		test("gemini-web-search falls back without retrying a non-transient Jev failure", async (t) => {
+		test("gemini-web-search uses the Flash-Lite fallback after a non-transient Jev failure", async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
 			const requests = captureRequests(t, [
@@ -251,7 +251,8 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(requests.length, 2);
 			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
 			assert.equal(requests[1].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
-			assert.equal(JSON.parse(requests[1].body as string).model, "gemini-3.8-flash");
+			assert.equal(JSON.parse(requests[1].body as string).model, "gemini-3.5-flash-lite");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "high");
 			assert.equal(JSON.parse(stdout[0]).jev, undefined);
 			assert.deepEqual(stderr, [
 				"Warning: Jev selection failed; continuing without Jev. Jev selection request failed (401): invalid TypeSafe key",
