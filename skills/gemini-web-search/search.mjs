@@ -31,7 +31,7 @@ const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 
 const GEMINI_CONFIGURATIONS = {
-	direct_retrieval: { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" },
+	direct_retrieval: { model: "gemini-3.5-flash-lite", thinkingLevel: "high" },
 	light_reasoning: { model: "gemini-3.8-flash", thinkingLevel: "low" },
 	deep_reasoning: { model: "gemini-3.8-flash", thinkingLevel: "medium" },
 };

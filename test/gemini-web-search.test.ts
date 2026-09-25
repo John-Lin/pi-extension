@@ -187,7 +187,7 @@ test("selectGeminiConfiguration maps each work classification to its Gemini conf
 	assert.equal(typeof geminiSearch.selectGeminiConfiguration, "function");
 	if (typeof geminiSearch.selectGeminiConfiguration !== "function") return;
 	const cases = [
-		["direct_retrieval", { model: "gemini-3.1-flash-lite", thinkingLevel: "minimal" }],
+		["direct_retrieval", { model: "gemini-3.5-flash-lite", thinkingLevel: "high" }],
 		["light_reasoning", { model: "gemini-3.8-flash", thinkingLevel: "low" }],
 		["deep_reasoning", { model: "gemini-3.8-flash", thinkingLevel: "medium" }],
 	] as const;

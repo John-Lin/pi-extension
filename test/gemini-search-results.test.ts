@@ -117,10 +117,10 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(requests[0].headers.get("authorization"), "Bearer typesafe-test-key");
 			assert.deepEqual(JSON.parse(requests[0].body as string).state, { query: "test query" });
 			const googleRequest = JSON.parse(requests[1].body as string);
-			assert.equal(googleRequest.model, "gemini-3.1-flash-lite");
-			assert.deepEqual(googleRequest.generation_config, { thinking_level: "minimal" });
-			assert.equal(JSON.parse(stdout[0]).model, "gemini-3.1-flash-lite");
-			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "minimal");
+			assert.equal(googleRequest.model, "gemini-3.5-flash-lite");
+			assert.deepEqual(googleRequest.generation_config, { thinking_level: "high" });
+			assert.equal(JSON.parse(stdout[0]).model, "gemini-3.5-flash-lite");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "high");
 			assert.deepEqual(JSON.parse(stdout[0]).jev, {
 				choice: "direct_retrieval",
 				confidence: 0.82,
@@ -188,8 +188,8 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			assert.equal(requests[0].url, "https://api.typesafe.ai/v1/systemone");
 			assert.equal(requests[1].url, "https://api.typesafe.ai/v1/systemone");
 			assert.notEqual(requests[0].signal, requests[1].signal);
-			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.1-flash-lite");
-			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "minimal");
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.5-flash-lite");
+			assert.equal(JSON.parse(stdout[0]).thinkingLevel, "high");
 			assert.deepEqual(stderr, []);
 		});
 
