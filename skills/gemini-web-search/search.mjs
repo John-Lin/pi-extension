@@ -15,7 +15,9 @@ import { pathToFileURL } from "node:url";
 import { validateInteraction } from "./gemini-interactions.mjs";
 
 export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+export const TYPESAFE_SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
 const TOKEN_ENV = "GEMINI_API_KEY";
+const TYPESAFE_TOKEN_ENV = "TYPESAFE_API_KEY";
 const AUTH_HEADER = "x-goog-api-key";
 
 // Pi stores credentials in auth.json keyed by provider name. The built-in
@@ -26,6 +28,19 @@ const DEFAULT_MODEL = "gemini-3.8-flash";
 const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_RETRY_DELAY_MS = 1000;
+
+const GEMINI_CONFIGURATIONS = {
+	direct_retrieval: { model: "gemini-3.5-flash-lite", thinkingLevel: "high" },
+	light_reasoning: { model: "gemini-3.8-flash", thinkingLevel: "low" },
+	deep_reasoning: { model: "gemini-3.8-flash", thinkingLevel: "medium" },
+};
+
+export function parseRetryAfterMs(raw) {
+	if (raw === null || raw === "") return DEFAULT_RETRY_DELAY_MS;
+	const seconds = Number(raw);
+	return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : DEFAULT_RETRY_DELAY_MS;
+}
 
 function parseTimeout(raw, fallback) {
 	if (raw === undefined || raw === "") return fallback;
@@ -132,6 +147,72 @@ function resolveConfigValue(value, env) {
 	return env[value] || value;
 }
 
+export function resolveTypesafeApiKey(env = process.env) {
+	const apiKey = env[TYPESAFE_TOKEN_ENV];
+	return apiKey ? { apiKey, source: `env:${TYPESAFE_TOKEN_ENV}` } : undefined;
+}
+
+export function buildThinkingSelectionRequest(query) {
+	return {
+		state: { query },
+		model: "jev-latest",
+		questions: {
+			required_work: {
+				type: "choice",
+				instructions: {
+					question: "What kind of work is required to answer `query` reliably?",
+					focus: "Classify the work required, not the answer length, number of returned items, citations, or source authority.",
+				},
+				criteria: {
+					direct_retrieval: {
+						what: "Find, copy, filter, or list facts explicitly available in sources.",
+						not_for: "Interpretation, inference, reconciling conflicting information, or recommendations.",
+						examples: [
+							"What is the latest stable Python version?",
+							"List the remaining 2026 NYSE and Nasdaq closure and early-close dates.",
+							"Is a typhoon warning active today?",
+						],
+					},
+					light_reasoning: {
+						what: "Interpret findings, compare related evidence, resolve limited ambiguity, reach a straightforward conclusion, or handle a simple planning or troubleshooting task.",
+						not_for: "Pure factual extraction or work with multiple interacting constraints, substantial conflicts, or several plausible causes.",
+						examples: [
+							"Explain differences between the NYSE and Nasdaq holiday schedules.",
+							"Identify a likely fix for a single clear configuration error.",
+						],
+					},
+					deep_reasoning: {
+						what: "Perform broad synthesis, multi-constraint comparison, multi-step planning, or troubleshoot problems with interacting constraints, substantial conflicting evidence, or multiple plausible causes.",
+						not_for: "Direct retrieval, simple interpretation, or a bounded task with one clear issue.",
+						examples: [
+							"Compare database migration strategies and recommend a rollout plan.",
+							"Troubleshoot an intermittent deployment failure with several plausible causes.",
+						],
+					},
+				},
+			},
+		},
+	};
+}
+
+export function selectGeminiConfiguration(selection) {
+	const answer = selection?.answers?.required_work;
+	const configuration = Object.hasOwn(GEMINI_CONFIGURATIONS, answer?.choice)
+		? GEMINI_CONFIGURATIONS[answer.choice]
+		: undefined;
+	if (!configuration || !Number.isFinite(answer?.confidence) || !answer?.probabilities || Array.isArray(answer.probabilities)) {
+		throw new Error("Jev returned an invalid Gemini configuration.");
+	}
+	return {
+		...configuration,
+		jev: {
+			choice: answer.choice,
+			confidence: answer.confidence,
+			probabilities: answer.probabilities,
+		},
+	};
+}
+
 export function resolveApiKey(env = process.env, authPath = join(getAgentDir(), "auth.json")) {
 	const fromEnv = env[TOKEN_ENV];
 	if (fromEnv) {
@@ -235,9 +316,13 @@ export function extractCitations(interaction) {
 	return Array.from(seen.values());
 }
 
-function formatHuman({ model, source, query, purpose, text, citations, stepTypes, showRaw }) {
+function formatHuman({ model, thinkingLevel, jev, source, query, purpose, text, citations, stepTypes, showRaw }) {
 	const lines = [];
-	lines.push(`Model: ${model} (auth: ${source})`);
+	lines.push(`Model: ${model} (thinking: ${thinkingLevel}, auth: ${source})`);
+	if (jev) {
+		const probabilities = Object.entries(jev.probabilities).map(([choice, probability]) => `${choice}=${probability}`).join(", ");
+		lines.push(`Jev: ${jev.choice} (confidence: ${jev.confidence}; probabilities: ${probabilities})`);
+	}
 	lines.push(`Query: ${query}`);
 	if (purpose) lines.push(`Purpose: ${purpose}`);
 	if (showRaw) {
@@ -271,7 +356,53 @@ export async function main(argv = process.argv.slice(2)) {
 		return 1;
 	}
 
-	const model = args.model || DEFAULT_MODEL;
+	let model = args.model || DEFAULT_MODEL;
+	let thinkingLevel = args.thinkingLevel;
+	let jev;
+	const typesafeCredentials = resolveTypesafeApiKey();
+	if (typesafeCredentials) {
+		try {
+			let selection;
+			for (let attempt = 0; attempt < 2; attempt++) {
+				const selectionSignal =
+					typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
+				let res;
+				let payload;
+				try {
+					res = await fetch(TYPESAFE_SYSTEM_ONE_URL, {
+						method: "POST",
+						headers: {
+							"content-type": "application/json",
+							accept: "application/json",
+							authorization: `Bearer ${typesafeCredentials.apiKey}`,
+						},
+						body: JSON.stringify(buildThinkingSelectionRequest(args.query)),
+						signal: selectionSignal,
+					});
+					payload = await res.text();
+				} catch (err) {
+					if (attempt === 0) continue;
+					throw err;
+				}
+				if (res.ok) {
+					selection = JSON.parse(payload);
+					break;
+				}
+				if (attempt === 0 && (res.status === 429 || res.status === 529)) {
+					await new Promise((resolve) => setTimeout(resolve, parseRetryAfterMs(res.headers.get("retry-after"))));
+					continue;
+				}
+				throw new Error(`Jev selection request failed (${res.status}): ${payload}`);
+			}
+			const configuration = selectGeminiConfiguration(selection);
+			model = configuration.model;
+			thinkingLevel = configuration.thinkingLevel;
+			jev = configuration.jev;
+		} catch (err) {
+			({ model, thinkingLevel } = GEMINI_CONFIGURATIONS.direct_retrieval);
+			console.error(`Warning: Jev selection failed; continuing without Jev. ${err?.message || String(err)}`);
+		}
+	}
 
 	const signal =
 		typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(args.timeoutMs) : undefined;
@@ -291,7 +422,7 @@ export async function main(argv = process.argv.slice(2)) {
 					model,
 					query: args.query,
 					purpose: args.purpose,
-					thinkingLevel: args.thinkingLevel,
+					thinkingLevel,
 				}),
 			),
 			signal,
@@ -317,7 +448,7 @@ export async function main(argv = process.argv.slice(2)) {
 	if (args.json) {
 		console.log(
 			JSON.stringify(
-				{ model, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
+				{ model, thinkingLevel, jev, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
 				null,
 				2,
 			),
@@ -328,6 +459,8 @@ export async function main(argv = process.argv.slice(2)) {
 	console.log(
 		formatHuman({
 			model,
+			thinkingLevel,
+			jev,
 			source,
 			query: args.query,
 			purpose: args.purpose,
