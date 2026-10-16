@@ -13,6 +13,7 @@ section.
 
 No npm install required (uses Node built-in `fetch`). Needs a Gemini API key —
 `GEMINI_API_KEY`, or the `google` api_key entry in pi's `~/.pi/agent/auth.json`.
+Set `TYPESAFE_API_KEY` to let TypeSafe Jev select Gemini's model and thinking level.
 
 ## Usage
 
@@ -25,6 +26,8 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 
 - **Always pass `--purpose`.** The summary is written for it: each finding is
   reported as why it matters for that purpose.
+- **Omit `--model` and `--thinking` by default.** Jev selects them when
+  configured; otherwise the script uses its Gemini defaults.
 
 ## Notes
 
@@ -36,3 +39,8 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
   click; the `title` carries the source domain.
 - A 429 means the search-grounding quota is exhausted — report it rather than
   switching to another model.
+- With `TYPESAFE_API_KEY`, Jev chooses between Gemini 3.8 Flash at `medium` or
+  `low`, and Gemini 3.5 Flash-Lite at `high`. Transient selection failures
+  are retried once; if selection still fails, the script warns and uses Gemini
+  3.5 Flash-Lite at `high` without Jev. Without it, `--model` and `--thinking`
+  control the Google request.
