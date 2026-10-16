@@ -16,6 +16,9 @@ import { validateInteraction } from "./gemini-interactions.mjs";
 
 export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 export const TYPESAFE_SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
+// Pinned rather than an alias: the selection criteria below are tuned against
+// this version, and an alias would silently change routing when it moves.
+const JEV_MODEL = "jev-1.14.0";
 const TOKEN_ENV = "GEMINI_API_KEY";
 const TYPESAFE_TOKEN_ENV = "TYPESAFE_API_KEY";
 const AUTH_HEADER = "x-goog-api-key";
@@ -158,7 +161,7 @@ export function resolveTypesafeApiKey(env = process.env) {
 export function buildThinkingSelectionRequest(query) {
 	return {
 		state: { query },
-		model: "jev-latest",
+		model: JEV_MODEL,
 		questions: {
 			required_work: {
 				type: "choice",

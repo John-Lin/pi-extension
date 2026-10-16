@@ -146,7 +146,9 @@ test("buildThinkingSelectionRequest asks Jev to classify the work using structur
 	if (typeof geminiSearch.buildThinkingSelectionRequest !== "function") return;
 	const request = geminiSearch.buildThinkingSelectionRequest("compare competing database migration strategies");
 	assert.deepEqual(request.state, { query: "compare competing database migration strategies" });
-	assert.equal(request.model, "jev-latest");
+	// Pinned: the criteria were tuned against this version, and an alias would
+	// silently change the routing when it moves.
+	assert.equal(request.model, "jev-1.14.0");
 	assert.deepEqual(request.questions.required_work, {
 		type: "choice",
 		instructions: {
