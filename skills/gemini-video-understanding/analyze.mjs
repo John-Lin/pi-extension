@@ -14,7 +14,11 @@ import { INTERACTIONS_URL, buildAuthHeaders, extractText, resolveApiKey } from "
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
-const DEFAULT_TIMEOUT_MS = 300000;
+// Node's built-in fetch stops waiting for response headers after 300 s (verified
+// on Node 22 and 26: UND_ERR_HEADERS_TIMEOUT at 301 s), so a longer timeout
+// could never take effect.
+const MAX_TIMEOUT_MS = 300000;
+const DEFAULT_TIMEOUT_MS = MAX_TIMEOUT_MS;
 
 // Google limits inline data to 100 MB per request payload (File input methods
 // guide). The payload carries the video base64-encoded, so the limit is
@@ -58,7 +62,7 @@ Flags:
                 questions, but slower. Needs a model that supports it.
   --model       Default model: ${DEFAULT_MODEL} (${LOW_LATENCY_MODEL} for lower latency).
   --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
-  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
+  --timeout     Request timeout in milliseconds (default and maximum: ${MAX_TIMEOUT_MS}).
 
 Credentials (first match wins):
   GEMINI_API_KEY   API key, sent as the "x-goog-api-key" header.
@@ -74,7 +78,7 @@ function parseTimeout(raw, fallback) {
 	if (raw === undefined || raw === "") return fallback;
 	const ms = Number(raw);
 	if (!Number.isFinite(ms)) throw new Error(`--timeout expects a number of milliseconds, got '${raw}'.`);
-	return Math.max(1000, ms);
+	return Math.min(MAX_TIMEOUT_MS, Math.max(1000, ms));
 }
 
 export function parseArgs(argv) {
@@ -254,9 +258,18 @@ export async function main(argv = process.argv.slice(2)) {
 		console.log(await analyzeVideo({ apiKey, videoPart, ...args }));
 		return 0;
 	} catch (error) {
-		console.error(`Error: ${error.message || String(error)}`);
+		console.error(`Error: ${describeError(error)}`);
 		return 1;
 	}
+}
+
+// Node's fetch reports every network failure as "fetch failed" and keeps the
+// actual reason (timeout, DNS, TLS, reset) in error.cause.
+function describeError(error) {
+	const message = error?.message || String(error);
+	const cause = error?.cause;
+	if (!cause?.message) return message;
+	return `${message}: ${cause.message}${cause.code ? ` (${cause.code})` : ""}`;
 }
 
 const invokedDirectly = process.argv[1] && existsSync(process.argv[1]) &&
