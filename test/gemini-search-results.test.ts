@@ -278,6 +278,23 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			]);
 		});
 
+		test("gemini-web-search names the network cause when Jev cannot be reached", async (t) => {
+			const { stdout, stderr } = captureOutput(t);
+			process.env.TYPESAFE_API_KEY = "typesafe-test-key";
+			// Shape of Node's built-in fetch failure when DNS resolution fails.
+			const unreachable = () => new TypeError("fetch failed", {
+				cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.typesafe.ai"), { code: "ENOTFOUND" }),
+			});
+			const requests = captureRequests(t, [unreachable(), unreachable(), Response.json(sample)]);
+			assert.equal(await module.main(["test query", "--json"]), 0);
+			assert.equal(requests.length, 3);
+			assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.5-flash-lite");
+			assert.deepEqual(stderr, [
+				"Warning: Jev selection failed; continuing without Jev. fetch failed: getaddrinfo ENOTFOUND api.typesafe.ai (ENOTFOUND)",
+			]);
+			assert.equal(JSON.parse(stdout[0]).jev, undefined);
+		});
+
 		test(`${skill} rejects an unmatched grounding error beside a successful search`, async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			const failedResult = { type: "google_search_result", call_id: "unrelated", is_error: true, result: [] };
