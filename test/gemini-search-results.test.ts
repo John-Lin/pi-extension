@@ -87,6 +87,25 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 		assert.deepEqual(stderr, ["Error: Interactions request failed (429)", "Body: quota exceeded"]);
 	});
 
+	// Node's built-in fetch gives up waiting for response headers after 300 s
+	// (UND_ERR_HEADERS_TIMEOUT), so a longer timeout could never take effect.
+	test(`${skill} caps --timeout at the 300 s Node fetch limit`, () => {
+		assert.equal(module.parseArgs(["q"]).timeoutMs, 120000);
+		assert.equal(module.parseArgs(["q", "--timeout", "600000"]).timeoutMs, 300000);
+		assert.equal(module.parseArgs(["q", "--timeout=250000"]).timeoutMs, 250000);
+		assert.match(module.usage(), /--timeout\s+Request timeout in milliseconds \(default: 120000, maximum: 300000\)/);
+	});
+
+	test(`${skill} names the underlying cause when fetch fails`, async (t) => {
+		const { stdout, stderr } = captureOutput(t);
+		// Shape of Node's built-in fetch failure when no response headers arrive in time.
+		const cause = Object.assign(new Error("Headers Timeout Error"), { name: "HeadersTimeoutError", code: "UND_ERR_HEADERS_TIMEOUT" });
+		captureRequests(t, [new TypeError("fetch failed", { cause })]);
+		assert.equal(await module.main(["test query"]), 1);
+		assert.deepEqual(stdout, []);
+		assert.deepEqual(stderr, ["Error: fetch failed: Headers Timeout Error (UND_ERR_HEADERS_TIMEOUT)"]);
+	});
+
 	if (tool === "google_search") {
 		test("gemini-web-search preserves explicit model and thinking flags without a Jev key", async (t) => {
 			const { stdout, stderr } = captureOutput(t);

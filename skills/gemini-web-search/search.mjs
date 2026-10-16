@@ -29,6 +29,9 @@ const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_RETRY_DELAY_MS = 1000;
+// Node's built-in fetch stops waiting for response headers after 300 s
+// (UND_ERR_HEADERS_TIMEOUT), so a longer timeout could never take effect.
+const MAX_TIMEOUT_MS = 300000;
 
 const GEMINI_CONFIGURATIONS = {
 	direct_retrieval: { model: "gemini-3.5-flash-lite", thinkingLevel: "high" },
@@ -46,7 +49,7 @@ function parseTimeout(raw, fallback) {
 	if (raw === undefined || raw === "") return fallback;
 	const ms = Number(raw);
 	if (!Number.isFinite(ms)) throw new Error(`--timeout expects a number of milliseconds, got '${raw}'.`);
-	return Math.max(1000, ms);
+	return Math.min(MAX_TIMEOUT_MS, Math.max(1000, ms));
 }
 
 export function parseArgs(argv) {
@@ -103,7 +106,7 @@ Flags:
   --purpose     Why you need the research; the summary is written for it.
   --model       Default model: ${DEFAULT_MODEL} (${LOW_LATENCY_MODEL} for lower latency).
   --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
-  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
+  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}, maximum: ${MAX_TIMEOUT_MS}).
   --json        Print the result as JSON instead of text.
   --raw         Also print the interaction's step-type sequence.
 
@@ -340,6 +343,15 @@ function formatHuman({ model, thinkingLevel, jev, source, query, purpose, text, 
 	return lines.join("\n");
 }
 
+// Node's fetch reports every network failure as "fetch failed" and keeps the
+// actual reason (timeout, DNS, TLS, reset) in error.cause.
+function describeError(error) {
+	const message = error?.message || String(error);
+	const cause = error?.cause;
+	if (!cause?.message) return message;
+	return `${message}: ${cause.message}${cause.code ? ` (${cause.code})` : ""}`;
+}
+
 export async function main(argv = process.argv.slice(2)) {
 	const args = parseArgs(argv);
 	if (args.help || !args.query) {
@@ -438,7 +450,7 @@ export async function main(argv = process.argv.slice(2)) {
 		text = extractText(interaction);
 		if (!text.trim()) throw new Error("Search response did not contain text.");
 	} catch (err) {
-		console.error(`Error: ${err?.message || String(err)}`);
+		console.error(`Error: ${describeError(err)}`);
 		return 1;
 	}
 

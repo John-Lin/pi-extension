@@ -25,6 +25,9 @@ const PI_AUTH_PROVIDER = "google";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 120000;
+// Node's built-in fetch stops waiting for response headers after 300 s
+// (UND_ERR_HEADERS_TIMEOUT), so a longer timeout could never take effect.
+const MAX_TIMEOUT_MS = 300000;
 
 // Maps citations carry the source's Google Maps title, which always ends with
 // this suffix and, for review sources, starts with "Review of".
@@ -35,7 +38,7 @@ function parseTimeout(raw, fallback) {
 	if (raw === undefined || raw === "") return fallback;
 	const ms = Number(raw);
 	if (!Number.isFinite(ms)) throw new Error(`--timeout expects a number of milliseconds, got '${raw}'.`);
-	return Math.max(1000, ms);
+	return Math.min(MAX_TIMEOUT_MS, Math.max(1000, ms));
 }
 
 function parseCoordinate(raw, flag, limit) {
@@ -123,7 +126,7 @@ Flags:
   --purpose     Why you need the places; steers which ones are picked.
   --model       Default model: ${DEFAULT_MODEL}.
   --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
-  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
+  --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}, maximum: ${MAX_TIMEOUT_MS}).
   --json        Print the result as JSON instead of text.
   --raw         Also print the interaction's step-type sequence.
 
@@ -315,6 +318,15 @@ function formatHuman({ model, source, query, purpose, latitude, longitude, text,
 	return lines.join("\n");
 }
 
+// Node's fetch reports every network failure as "fetch failed" and keeps the
+// actual reason (timeout, DNS, TLS, reset) in error.cause.
+function describeError(error) {
+	const message = error?.message || String(error);
+	const cause = error?.cause;
+	if (!cause?.message) return message;
+	return `${message}: ${cause.message}${cause.code ? ` (${cause.code})` : ""}`;
+}
+
 export async function main(argv = process.argv.slice(2)) {
 	let args;
 	try {
@@ -375,7 +387,7 @@ export async function main(argv = process.argv.slice(2)) {
 		text = extractText(interaction);
 		if (!text.trim()) throw new Error("Search response did not contain text.");
 	} catch (err) {
-		console.error(`Error: ${err?.message || String(err)}`);
+		console.error(`Error: ${describeError(err)}`);
 		return 1;
 	}
 
