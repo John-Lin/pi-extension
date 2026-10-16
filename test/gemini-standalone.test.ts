@@ -6,12 +6,17 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test, { type TestContext } from "node:test";
 
+const ENTRY_SCRIPTS: Record<string, string> = {
+	"gemini-transcribe": "transcribe.mjs",
+	"gemini-video-understanding": "analyze.mjs",
+};
+
 function standaloneSkill(t: TestContext, skill: string) {
 	const directory = mkdtempSync(join(tmpdir(), "gemini standalone "));
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	const destination = join(directory, skill);
 	cpSync(new URL(`../skills/${skill}`, import.meta.url), destination, { recursive: true });
-	const script = join(destination, skill === "gemini-transcribe" ? "transcribe.mjs" : "search.mjs");
+	const script = join(destination, ENTRY_SCRIPTS[skill] ?? "search.mjs");
 	const env = { ...process.env, PI_CODING_AGENT_DIR: directory };
 	delete env.GEMINI_API_KEY;
 	return { directory, script, env };
@@ -82,4 +87,39 @@ test("standalone transcription resolves its own Google credentials", (t) => {
 		assert.equal(result.stdout, "");
 		assert.equal(result.stderr, "Error: unsupported audio format: .txt\n");
 	}
+});
+
+test("gemini-video-understanding starts from an isolated copy and through a symlink", (t) => {
+	const { directory, script, env } = standaloneSkill(t, "gemini-video-understanding");
+	const link = join(directory, "entry.mjs");
+	symlinkSync(script, link);
+	for (const entry of [script, link]) {
+		const result = spawnSync(process.execPath, [entry, "--help"], { cwd: directory, env, encoding: "utf8" });
+		assert.equal(result.status, 0, result.stderr);
+		assert.match(result.stdout, /^Usage:/);
+		assert.equal(result.stderr, "");
+	}
+});
+
+test("gemini-video-understanding resolves its own Google credentials", (t) => {
+	const { directory, script, env } = standaloneSkill(t, "gemini-video-understanding");
+	const args = ["https://www.youtube.com/watch?v=9hE5-98ZeCg", "Summarize"];
+	const missing = spawnSync(process.execPath, [script, ...args], { cwd: directory, env, encoding: "utf8" });
+	assert.equal(missing.status, 1);
+	assert.equal(missing.stdout, "");
+	assert.match(missing.stderr, /^Error: No credentials found\. Set GEMINI_API_KEY,.*auth\.json\.\n$/);
+
+	writeFileSync(join(directory, "auth.json"), "{ invalid json");
+	const malformed = spawnSync(process.execPath, [script, ...args], { cwd: directory, env, encoding: "utf8" });
+	assert.equal(malformed.status, 1);
+	assert.match(malformed.stderr, /^Error: Could not parse .*auth\.json:/);
+});
+
+test("gemini-video-understanding builds a stateless Google request from its isolated directory", async (t) => {
+	const { script } = standaloneSkill(t, "gemini-video-understanding");
+	const module = await import(pathToFileURL(script).href);
+	const videoPart = { type: "video", uri: "https://youtu.be/abc" };
+	const request = module.buildRequestBody({ model: "gemini-3.8-flash", videoPart, prompt: "Summarize", thinkingLevel: "medium" });
+	assert.equal(request.store, false);
+	assert.deepEqual(request.input, [videoPart, { type: "text", text: "Summarize" }]);
 });
