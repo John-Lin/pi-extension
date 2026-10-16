@@ -247,7 +247,13 @@ test("analyze main aborts a request that exceeds the timeout", async (t) => {
 	const { main } = await import(modulePath);
 	const { stdout, stderr } = captureOutput(t);
 	t.mock.method(globalThis, "fetch", (_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
-		options.signal!.addEventListener("abort", () => reject(options.signal!.reason));
+		// A hung real request holds an open socket that keeps the process alive
+		// until the timeout aborts it; this timer stands in for that socket.
+		const openSocket = setTimeout(() => {}, 60000);
+		options.signal!.addEventListener("abort", () => {
+			clearTimeout(openSocket);
+			reject(options.signal!.reason);
+		});
 	}));
 	assert.equal(await main([youtubeUrl, "Summarize", "--timeout", "1000"]), 1);
 	assert.deepEqual(stdout, []);
