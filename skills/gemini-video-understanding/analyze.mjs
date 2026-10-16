@@ -41,7 +41,7 @@ const MIME_TYPES = {
 
 export function usage() {
 	return `Usage:
-  node analyze.mjs <video-file|youtube-url> "<prompt>" [--model <id>] [--thinking <level>] [--timeout <ms>]
+  node analyze.mjs <video-file|youtube-url> "<prompt>" [--processing <mode>] [--model <id>] [--thinking <level>] [--timeout <ms>]
 
 Video sources:
   Local file    Sent inline as base64; the encoded video must fit the
@@ -50,6 +50,12 @@ Video sources:
   YouTube URL   Public videos only (not private or unlisted).
 
 Flags:
+  --processing  static | agentic (default: static, the API default).
+                static: frames at 1 FPS in one pass; best for short clips (< 5 min)
+                and whole-video summaries.
+                agentic: the model navigates the timeline and loads only what it
+                needs; far fewer tokens on long videos (> 5-10 min) and targeted
+                questions, but slower. Needs a model that supports it.
   --model       Default model: ${DEFAULT_MODEL} (${LOW_LATENCY_MODEL} for lower latency).
   --thinking    minimal | low | medium | high (default: ${DEFAULT_THINKING_LEVEL}).
   --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
@@ -60,7 +66,8 @@ Credentials (first match wins):
 
 Examples:
   node analyze.mjs demo.mp4 "Summarize this video in 3 sentences."
-  node analyze.mjs "https://www.youtube.com/watch?v=9hE5-98ZeCg" "What happens at 01:15?"`;
+  node analyze.mjs "https://www.youtube.com/watch?v=9hE5-98ZeCg" "What happens at 01:15?"
+  node analyze.mjs "https://www.youtube.com/watch?v=<id>" "When is pricing discussed?" --processing agentic`;
 }
 
 function parseTimeout(raw, fallback) {
@@ -82,6 +89,7 @@ export function parseArgs(argv) {
 		model: DEFAULT_MODEL,
 		thinkingLevel: DEFAULT_THINKING_LEVEL,
 		timeoutMs: DEFAULT_TIMEOUT_MS,
+		processing: undefined,
 	};
 	const positional = [];
 	for (let i = 0; i < argv.length; i++) {
@@ -94,6 +102,10 @@ export function parseArgs(argv) {
 			out.thinkingLevel = argv[++i] || out.thinkingLevel;
 		} else if (arg.startsWith("--thinking=")) {
 			out.thinkingLevel = arg.slice("--thinking=".length) || out.thinkingLevel;
+		} else if (arg === "--processing") {
+			out.processing = argv[++i] || out.processing;
+		} else if (arg.startsWith("--processing=")) {
+			out.processing = arg.slice("--processing=".length) || out.processing;
 		} else if (arg === "--timeout") {
 			out.timeoutMs = parseTimeout(argv[++i], out.timeoutMs);
 		} else if (arg.startsWith("--timeout=")) {
@@ -155,14 +167,39 @@ export async function buildVideoPart(source) {
 	return { type: "video", data, mime_type: mimeType };
 }
 
-export function buildRequestBody({ model, videoPart, prompt, thinkingLevel }) {
+export function buildRequestBody({ model, videoPart, prompt, thinkingLevel, processing }) {
 	return {
 		model,
 		store: false,
 		// Google recommends placing the text prompt after a single video part.
-		input: [videoPart, { type: "text", text: prompt }],
+		input: [processing ? { ...videoPart, processing } : videoPart, { type: "text", text: prompt }],
 		generation_config: { thinking_level: thinkingLevel },
 	};
+}
+
+// In agentic mode the video reaches the model only through processing calls.
+// A model without agentic support still completes, but without ever seeing
+// the video, so an answer is trusted only when every call has a matching,
+// successful result.
+export function validateAgenticProcessing(interaction) {
+	const steps = Array.isArray(interaction?.steps) ? interaction.steps : [];
+	const calls = steps.filter((step) => step?.type === "processing_call");
+	const results = steps.filter((step) => step?.type === "processing_result");
+	if (calls.length === 0) {
+		throw new Error("agentic video processing was not executed; the model may not support it, so the answer is not based on the video");
+	}
+	for (const call of calls) {
+		const matching = results.filter((result) => call.id && result.call_id === call.id);
+		if (matching.length === 0) {
+			throw new Error("agentic video processing result is missing");
+		}
+		if (matching.some((result) => result.is_error === true)) {
+			throw new Error("agentic video processing failed");
+		}
+	}
+	if (results.some((result) => !calls.some((call) => call.id && call.id === result.call_id))) {
+		throw new Error("agentic video processing result does not match a call");
+	}
 }
 
 function responseError(operation, response, body) {
@@ -170,14 +207,14 @@ function responseError(operation, response, body) {
 	return new Error(`${operation} failed (${response.status})${detail ? `: ${detail}` : ""}`);
 }
 
-export async function analyzeVideo({ apiKey, model, videoPart, prompt, thinkingLevel, timeoutMs }) {
+export async function analyzeVideo({ apiKey, model, videoPart, prompt, thinkingLevel, timeoutMs, processing }) {
 	const response = await fetch(INTERACTIONS_URL, {
 		method: "POST",
 		headers: {
 			...buildAuthHeaders(apiKey),
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify(buildRequestBody({ model, videoPart, prompt, thinkingLevel })),
+		body: JSON.stringify(buildRequestBody({ model, videoPart, prompt, thinkingLevel, processing })),
 		signal: AbortSignal.timeout(timeoutMs),
 	});
 	const body = await response.text();
@@ -186,6 +223,9 @@ export async function analyzeVideo({ apiKey, model, videoPart, prompt, thinkingL
 	}
 	const interaction = JSON.parse(body);
 	validateInteraction(interaction);
+	if (processing === "agentic") {
+		validateAgenticProcessing(interaction);
+	}
 	const text = extractText(interaction);
 	if (!text.trim()) {
 		throw new Error("video analysis response did not contain text");

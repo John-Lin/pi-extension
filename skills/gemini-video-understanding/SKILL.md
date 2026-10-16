@@ -27,6 +27,21 @@ node analyze.mjs <video-file|youtube-url> "<what you want to know>"
 - **YouTube URL** must point to a public video; private and unlisted videos fail.
 - Refer to moments in the prompt as `MM:SS` (e.g. "What happens at 01:15?").
 
+## Processing mode
+
+Pick `--processing` per request; it trades tokens against latency:
+
+- **static** (default): best for short clips (under ~5 minutes) and summaries
+  that need the whole video.
+- **agentic**: best for long videos (over ~5–10 minutes) and questions about
+  specific moments or topics. On a 32-minute video with a targeted question it
+  used ~80% fewer tokens than static, but took longer.
+
+An agentic answer is printed only when the response proves the model actually
+loaded the video. A model without agentic support fails with "agentic video
+processing was not executed" — switch to the default model or to static rather
+than retrying.
+
 ## Notes
 
 - Requests use `store: false` to disable Interactions API object storage. Video

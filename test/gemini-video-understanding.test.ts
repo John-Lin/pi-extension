@@ -39,6 +39,7 @@ test("analyze --help documents both video sources and Google credentials", (t) =
 	assert.match(result.stdout, /^Usage:\n  node analyze\.mjs <video-file\|youtube-url> "<prompt>"/);
 	assert.match(result.stdout, /100 MB/);
 	assert.match(result.stdout, /YouTube/);
+	assert.match(result.stdout, /--processing\s+static \| agentic/);
 	assert.match(result.stdout, /GEMINI_API_KEY/);
 	assert.match(result.stdout, /auth\.json/);
 	assert.equal(result.stderr, "");
@@ -63,9 +64,10 @@ test("parseArgs joins the prompt words and reads option overrides", async () => 
 		model: "gemini-3.8-flash",
 		thinkingLevel: "medium",
 		timeoutMs: 300000,
+		processing: undefined,
 	});
 	assert.deepEqual(
-		parseArgs(["--model", "gemini-3.5-flash-lite", "clip.mp4", "--thinking=low", "--timeout", "5000", "What happens?"]),
+		parseArgs(["--model", "gemini-3.5-flash-lite", "clip.mp4", "--thinking=low", "--timeout", "5000", "--processing", "agentic", "What happens?"]),
 		{
 			help: false,
 			source: "clip.mp4",
@@ -73,9 +75,11 @@ test("parseArgs joins the prompt words and reads option overrides", async () => 
 			model: "gemini-3.5-flash-lite",
 			thinkingLevel: "low",
 			timeoutMs: 5000,
+			processing: "agentic",
 		},
 	);
 	assert.equal(parseArgs(["--timeout=10", youtubeUrl, "q"]).timeoutMs, 1000);
+	assert.equal(parseArgs(["--processing=static", youtubeUrl, "q"]).processing, "static");
 	assert.throws(() => parseArgs(["--timeout", "soon", youtubeUrl, "q"]), /--timeout expects a number of milliseconds, got 'soon'/);
 });
 
@@ -165,6 +169,17 @@ test("buildRequestBody places the video before the prompt and disables storage",
 			generation_config: { thinking_level: "high" },
 		},
 	);
+});
+
+test("buildRequestBody sets the processing mode on the video part only when one is chosen", async () => {
+	const { buildRequestBody } = await import(modulePath);
+	const videoPart = { type: "video", uri: youtubeUrl };
+	const request = (processing?: string) =>
+		buildRequestBody({ model: "gemini-3.8-flash", videoPart, prompt: "Summarize", thinkingLevel: "medium", processing });
+	assert.deepEqual(request("agentic").input[0], { type: "video", uri: youtubeUrl, processing: "agentic" });
+	assert.deepEqual(request("static").input[0], { type: "video", uri: youtubeUrl, processing: "static" });
+	assert.deepEqual(request().input[0], { type: "video", uri: youtubeUrl });
+	assert.deepEqual(videoPart, { type: "video", uri: youtubeUrl });
 });
 
 test("a local file is checked before credentials are resolved", (t) => {
@@ -258,4 +273,55 @@ test("analyze main aborts a request that exceeds the timeout", async (t) => {
 	assert.equal(await main([youtubeUrl, "Summarize", "--timeout", "1000"]), 1);
 	assert.deepEqual(stdout, []);
 	assert.match(stderr[0], /^Error: .*timed? ?out/i);
+});
+
+// Shape observed from the live API: processing steps carry only ids and
+// opaque signatures; the answer arrives in the final model_output step.
+function agenticInteraction(steps: object[]) {
+	return {
+		status: "completed",
+		steps: [...steps, { type: "thought", signature: "t" }, { type: "model_output", content: [{ type: "text", text: "At 00:20 the counter shows 20." }] }],
+	};
+}
+const processingCall = (id: string) => ({ type: "processing_call", id, signature: "c" });
+const processingResult = (call_id: string, extra = {}) => ({ type: "processing_result", call_id, signature: "r", ...extra });
+
+test("analyze main requests agentic processing and prints the answer once the video was navigated", async (t) => {
+	const { main } = await import(modulePath);
+	const { stdout, stderr } = captureOutput(t);
+	const requests = captureRequests(t, [Response.json(agenticInteraction([
+		processingCall("call_1"), processingResult("call_1"), processingCall("call_2"), processingResult("call_2"),
+	]))]);
+
+	assert.equal(await main([youtubeUrl, "What does the counter show at 00:20?", "--processing", "agentic"]), 0);
+	assert.deepEqual(stdout, ["At 00:20 the counter shows 20."]);
+	assert.deepEqual(stderr, []);
+	assert.deepEqual(JSON.parse(requests[0].body as string).input[0], { type: "video", uri: youtubeUrl, processing: "agentic" });
+});
+
+for (const scenario of [
+	{ name: "no processing steps (the model ignored agentic mode)", steps: [] },
+	{ name: "a call without a result", steps: [processingCall("call_1")] },
+	{ name: "a result that matches no call", steps: [processingCall("call_1"), processingResult("call_1"), processingResult("call_9")] },
+	{ name: "a call without an id", steps: [{ type: "processing_call" }, processingResult("")] },
+	{ name: "a failed result", steps: [processingCall("call_1"), processingResult("call_1", { is_error: true })] },
+]) {
+	test(`analyze main rejects agentic output with ${scenario.name}`, async (t) => {
+		const { main } = await import(modulePath);
+		const { stdout, stderr } = captureOutput(t);
+		captureRequests(t, [Response.json(agenticInteraction(scenario.steps))]);
+		assert.equal(await main([youtubeUrl, "Summarize", "--processing", "agentic"]), 1);
+		assert.deepEqual(stdout, []);
+		assert.equal(stderr.length, 1);
+		assert.match(stderr[0], /^Error: agentic video processing /);
+	});
+}
+
+test("analyze main does not require processing steps in static mode", async (t) => {
+	const { main } = await import(modulePath);
+	const { stdout } = captureOutput(t);
+	const requests = captureRequests(t, [Response.json(agenticInteraction([]))]);
+	assert.equal(await main([youtubeUrl, "Summarize", "--processing", "static"]), 0);
+	assert.deepEqual(stdout, ["At 00:20 the counter shows 20."]);
+	assert.equal(JSON.parse(requests[0].body as string).input[0].processing, "static");
 });
