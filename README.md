@@ -26,6 +26,11 @@ skills/
     transcribe.mjs
     google.mjs
     gemini-interactions.mjs
+  gemini-video-understanding/
+    SKILL.md
+    analyze.mjs
+    google.mjs
+    gemini-interactions.mjs
   gemini-web-search/
     SKILL.md
     search.mjs
