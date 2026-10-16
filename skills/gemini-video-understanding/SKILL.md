@@ -1,6 +1,6 @@
 ---
 name: gemini-video-understanding
-description: "Video understanding with Gemini via Google AI Studio. Use when you need to summarize, describe, or answer questions about a local video file (20 MB or smaller) or a public YouTube video."
+description: "Video understanding with Gemini via Google AI Studio. Use when you need to summarize, describe, or answer questions about a local video file (up to about 75 MB) or a public YouTube video."
 ---
 
 # Gemini Video Understanding
@@ -21,8 +21,9 @@ default, supported format and example.
 node analyze.mjs <video-file|youtube-url> "<what you want to know>"
 ```
 
-- **Local file** is sent inline as base64 and must be 20 MB or smaller. For a
-  larger file, report the limit; this skill has no upload path.
+- **Local file** is sent inline as base64. Google's inline limit is 100 MB per
+  request, so the raw video can be about 75 MB at most. For a larger file,
+  report the limit; this skill has no upload path.
 - **YouTube URL** must point to a public video; private and unlisted videos fail.
 - Refer to moments in the prompt as `MM:SS` (e.g. "What happens at 01:15?").
 

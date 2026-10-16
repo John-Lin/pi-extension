@@ -11,7 +11,10 @@ const script = fileURLToPath(new URL("../skills/gemini-video-understanding/analy
 const modulePath = "../skills/gemini-video-understanding/analyze.mjs";
 const youtubeUrl = "https://www.youtube.com/watch?v=9hE5-98ZeCg";
 const interactionsUrl = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MAX_INLINE_BYTES = 20 * 1024 * 1024;
+// Google's inline limit applies to the request payload, so it bounds the
+// base64-encoded video: 3 raw bytes become 4 encoded bytes.
+const MAX_INLINE_BYTES = 100 * 1024 * 1024;
+const MAX_RAW_BYTES = (MAX_INLINE_BYTES / 4) * 3;
 
 function localVideo(t: TestContext, name = "clip.mp4") {
 	const directory = mkdtempSync(join(tmpdir(), "gemini-video-"));
@@ -34,7 +37,7 @@ test("analyze --help documents both video sources and Google credentials", (t) =
 	const result = run(["--help"], env);
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stdout, /^Usage:\n  node analyze\.mjs <video-file\|youtube-url> "<prompt>"/);
-	assert.match(result.stdout, /20 MB/);
+	assert.match(result.stdout, /100 MB/);
 	assert.match(result.stdout, /YouTube/);
 	assert.match(result.stdout, /GEMINI_API_KEY/);
 	assert.match(result.stdout, /auth\.json/);
@@ -130,24 +133,24 @@ test("buildVideoPart rejects sources it cannot send inline", async (t) => {
 	const { directory } = localVideo(t);
 	const oversized = join(directory, "big.mp4");
 	writeFileSync(oversized, "");
-	truncateSync(oversized, MAX_INLINE_BYTES + 1);
+	truncateSync(oversized, MAX_RAW_BYTES + 1);
 	const unsupported = join(directory, "clip.mkv");
 	writeFileSync(unsupported, "x");
 
 	await assert.rejects(buildVideoPart("https://example.com/clip.mp4"), /only YouTube URLs are supported/);
 	await assert.rejects(buildVideoPart(join(directory, "missing.mp4")), /file not found: .*missing\.mp4/);
 	await assert.rejects(buildVideoPart(unsupported), /unsupported video format: \.mkv/);
-	await assert.rejects(buildVideoPart(oversized), /exceeds the 20 MB inline limit/);
+	await assert.rejects(buildVideoPart(oversized), /video is 75\.0 MB \(100\.0 MB base64-encoded\), which exceeds the 100 MB inline request limit$/);
 });
 
-test("buildVideoPart accepts a local video of exactly 20 MB", async (t) => {
+test("buildVideoPart accepts a local video whose base64 encoding is exactly 100 MB", async (t) => {
 	const { buildVideoPart } = await import(modulePath);
 	const { directory } = localVideo(t);
 	const atLimit = join(directory, "limit.mp4");
 	writeFileSync(atLimit, "");
-	truncateSync(atLimit, MAX_INLINE_BYTES);
+	truncateSync(atLimit, MAX_RAW_BYTES);
 	const part = await buildVideoPart(atLimit);
-	assert.equal(Buffer.from(part.data, "base64").length, MAX_INLINE_BYTES);
+	assert.equal(part.data.length, MAX_INLINE_BYTES);
 });
 
 test("buildRequestBody places the video before the prompt and disables storage", async () => {

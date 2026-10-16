@@ -16,10 +16,13 @@ const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_THINKING_LEVEL = "medium";
 const DEFAULT_TIMEOUT_MS = 300000;
 
-// Google documents inline video data for requests under 20 MB; larger videos
-// need the Files API, which this skill deliberately does not use.
-const MAX_INLINE_MB = 20;
+// Google limits inline data to 100 MB per request payload (File input methods
+// guide). The payload carries the video base64-encoded, so the limit is
+// checked against the encoded size. Larger videos need the Files API, which
+// this skill deliberately does not use.
+const MAX_INLINE_MB = 100;
 const MAX_INLINE_BYTES = MAX_INLINE_MB * 1024 * 1024;
+const MAX_RAW_MB = (MAX_INLINE_MB / 4) * 3;
 
 const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"]);
 
@@ -41,7 +44,8 @@ export function usage() {
   node analyze.mjs <video-file|youtube-url> "<prompt>" [--model <id>] [--thinking <level>] [--timeout <ms>]
 
 Video sources:
-  Local file    Sent inline as base64; must be ${MAX_INLINE_MB} MB or smaller.
+  Local file    Sent inline as base64; the encoded video must fit the
+                ${MAX_INLINE_MB} MB inline request limit (about ${MAX_RAW_MB} MB of raw video).
                 Formats: ${Object.keys(MIME_TYPES).join(" ")}
   YouTube URL   Public videos only (not private or unlisted).
 
@@ -140,9 +144,12 @@ export async function buildVideoPart(source) {
 		throw new Error(`file not found: ${source}`);
 	}
 	const mimeType = mimeTypeForPath(source);
-	if (size > MAX_INLINE_BYTES) {
-		const sizeMb = (size / 1024 / 1024).toFixed(1);
-		throw new Error(`video is ${sizeMb} MB, which exceeds the ${MAX_INLINE_MB} MB inline limit`);
+	const encodedSize = 4 * Math.ceil(size / 3);
+	if (encodedSize > MAX_INLINE_BYTES) {
+		const toMb = (bytes) => (bytes / 1024 / 1024).toFixed(1);
+		throw new Error(
+			`video is ${toMb(size)} MB (${toMb(encodedSize)} MB base64-encoded), which exceeds the ${MAX_INLINE_MB} MB inline request limit`,
+		);
 	}
 	const data = (await readFile(source)).toString("base64");
 	return { type: "video", data, mime_type: mimeType };
