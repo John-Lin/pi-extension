@@ -40,6 +40,7 @@ test("analyze --help documents both video sources and Google credentials", (t) =
 	assert.match(result.stdout, /100 MB/);
 	assert.match(result.stdout, /YouTube/);
 	assert.match(result.stdout, /--processing\s+static \| agentic/);
+	assert.match(result.stdout, /--timeout\s+Request timeout in milliseconds \(default and maximum: 300000\)/);
 	assert.match(result.stdout, /GEMINI_API_KEY/);
 	assert.match(result.stdout, /auth\.json/);
 	assert.equal(result.stderr, "");
@@ -79,6 +80,9 @@ test("parseArgs joins the prompt words and reads option overrides", async () => 
 		},
 	);
 	assert.equal(parseArgs(["--timeout=10", youtubeUrl, "q"]).timeoutMs, 1000);
+	// Node's built-in fetch gives up waiting for response headers after 300 s,
+	// so a longer timeout could never take effect.
+	assert.equal(parseArgs(["--timeout", "600000", youtubeUrl, "q"]).timeoutMs, 300000);
 	assert.equal(parseArgs(["--processing=static", youtubeUrl, "q"]).processing, "static");
 	assert.throws(() => parseArgs(["--timeout", "soon", youtubeUrl, "q"]), /--timeout expects a number of milliseconds, got 'soon'/);
 });
@@ -257,6 +261,17 @@ for (const scenario of [
 		else assert.match(stderr[0], scenario.error);
 	});
 }
+
+test("analyze main names the underlying cause when fetch fails", async (t) => {
+	const { main } = await import(modulePath);
+	const { stdout, stderr } = captureOutput(t);
+	// Shape of Node's built-in fetch failure when no response headers arrive in time.
+	const cause = Object.assign(new Error("Headers Timeout Error"), { name: "HeadersTimeoutError", code: "UND_ERR_HEADERS_TIMEOUT" });
+	captureRequests(t, [new TypeError("fetch failed", { cause })]);
+	assert.equal(await main([youtubeUrl, "Summarize"]), 1);
+	assert.deepEqual(stdout, []);
+	assert.deepEqual(stderr, ["Error: fetch failed: Headers Timeout Error (UND_ERR_HEADERS_TIMEOUT)"]);
+});
 
 test("analyze main aborts a request that exceeds the timeout", async (t) => {
 	const { main } = await import(modulePath);

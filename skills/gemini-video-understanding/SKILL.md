@@ -46,7 +46,8 @@ than retrying.
 
 - Requests use `store: false` to disable Interactions API object storage. Video
   and prompt still go to Google; this is not a guarantee of zero provider retention.
-- Long videos take time; raise `--timeout` rather than retrying a timed-out request.
+- A request waits at most 5 minutes; Node's fetch caps it and `--timeout` can
+  only shorten it. Report a timeout rather than retrying the same request.
 - A 429 means the quota is exhausted — report it rather than switching models.
 
 ## References
