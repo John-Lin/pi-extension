@@ -1,5 +1,4 @@
-import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai/compat";
+import type { AssistantMessage, Message, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { BtwBottomOverlay } from "./panel.ts";
 
@@ -32,17 +31,9 @@ const BTW_SIDE_REMINDER = [
 ].join("\n");
 
 function resolveBtwSystemPrompt(ctx: ExtensionCommandContext): string {
-	try {
-		const main = ctx.getSystemPrompt();
-		if (main.trim().length > 0) return main;
-	} catch {
-		// ExtensionCommandContext.getSystemPrompt is required by the SDK,
-		// but legacy test stubs may not provide it; fall through.
-	}
-	return BTW_SYSTEM_PROMPT;
+	const main = ctx.getSystemPrompt();
+	return main.trim().length > 0 ? main : BTW_SYSTEM_PROMPT;
 }
-
-type BtwStreamOptions = NonNullable<Parameters<typeof streamSimple>[2]>;
 
 function stripIncompleteAssistantTrailing(messages: Message[]): Message[] {
 	const last = messages.at(-1);
@@ -66,7 +57,11 @@ function buildBtwMessages(ctx: ExtensionCommandContext, question: string): {
 	thinkingLevel: string;
 } {
 	const sessionContext = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId());
-	const messages = stripIncompleteAssistantTrailing(convertToLlm(sessionContext.messages));
+	// The transcript's system messages carry the main agent's prompt sections and
+	// tool declarations. BTW sends the current prompt as its own system prompt and
+	// must not offer tools, so those messages are left out of the side request.
+	const conversation = convertToLlm(sessionContext.messages).filter((message) => message.role !== "system");
+	const messages = stripIncompleteAssistantTrailing(conversation);
 
 	messages.push({
 		role: "user",
@@ -76,19 +71,22 @@ function buildBtwMessages(ctx: ExtensionCommandContext, question: string): {
 
 	return {
 		messages,
-		thinkingLevel: sessionContext.thinkingLevel,
+		// The runtime level is what the main agent sends; pi can restore or clamp it
+		// without recording a session entry, so the entry is only a fallback.
+		thinkingLevel: ctx.thinkingLevel ?? sessionContext.thinkingLevel,
 	};
 }
 
-function getBtwReasoning(thinkingLevel: string): BtwStreamOptions["reasoning"] | undefined {
+// Mirrors the main agent: "off" (or an unknown level) requests no reasoning.
+function getBtwReasoning(thinkingLevel: string): SimpleStreamOptions["reasoning"] {
 	switch (thinkingLevel) {
-		case "off":
 		case "minimal":
 		case "low":
 		case "medium":
 		case "high":
 		case "xhigh":
-			return thinkingLevel as BtwStreamOptions["reasoning"];
+		case "max":
+			return thinkingLevel;
 		default:
 			return undefined;
 	}
@@ -108,25 +106,17 @@ function findFirstToolCallName(message: AssistantMessage): string | undefined {
 	return call?.name;
 }
 
-async function streamBtwAnswer(
-	panel: BtwBottomOverlay,
-	ctx: ExtensionCommandContext,
-	question: string,
-	apiKey: BtwStreamOptions["apiKey"],
-	headers: BtwStreamOptions["headers"],
-	baseUrl: string | undefined,
-): Promise<void> {
+async function streamBtwAnswer(panel: BtwBottomOverlay, ctx: ExtensionCommandContext, question: string): Promise<void> {
 	const { messages, thinkingLevel } = buildBtwMessages(ctx, question);
-	const requestModel = baseUrl ? { ...ctx.model!, baseUrl } : ctx.model!;
-	const answerStream = streamSimple(
-		requestModel,
+	// The session model registry resolves request auth (API keys, OAuth, headers,
+	// base URL) and reaches providers registered by extensions.
+	const answerStream = ctx.modelRegistry.streamSimple(
+		ctx.model!,
 		{
 			systemPrompt: resolveBtwSystemPrompt(ctx),
 			messages,
 		},
 		{
-			apiKey,
-			headers,
 			signal: panel.signal,
 			reasoning: getBtwReasoning(thinkingLevel),
 		},
@@ -177,7 +167,8 @@ export default function (pi: ExtensionAPI): void {
 	pi.registerCommand("btw", {
 		description: "Ask a quick side question without interrupting the main conversation",
 		handler: async (args, ctx: ExtensionCommandContext) => {
-			if (!ctx.hasUI) {
+			// The overlay is a custom terminal component, which only the TUI can host.
+			if (ctx.mode !== "tui") {
 				ctx.ui.notify("/btw requires interactive mode.", "warning");
 				return;
 			}
@@ -193,16 +184,10 @@ export default function (pi: ExtensionAPI): void {
 				return;
 			}
 
-			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-			if (!auth.ok) {
-				ctx.ui.notify(auth.error, "error");
-				return;
-			}
-
 			await ctx.ui.custom<void>(
 				(tui, theme, _keybindings, done) => {
 					const panel = new BtwBottomOverlay(tui, theme, prompt, done);
-					void streamBtwAnswer(panel, ctx, prompt, auth.apiKey, auth.headers, auth.baseUrl).catch((error) => {
+					void streamBtwAnswer(panel, ctx, prompt).catch((error) => {
 						if (panel.isClosed()) {
 							return;
 						}
