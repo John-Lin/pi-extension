@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import notifyExtension, {
-	handleAgentEnd,
+	handleAgentSettled,
 	getCompletionSoundCommand,
 } from "../extensions/notify.ts";
 
@@ -17,43 +18,60 @@ type ExecResult = {
 	stderr?: string;
 };
 
+type AgentHandler = (event: unknown, ctx: Pick<ExtensionContext, "mode" | "hasUI">) => Promise<void>;
+
 type PiStub = {
 	execCalls: ExecCall[];
-	agentEndHandler: (() => Promise<void>) | null;
+	registeredEvents: string[];
+	agentSettledHandler: AgentHandler | null;
 	exec: (command: string, args: string[]) => Promise<ExecResult>;
-	on: (event: string, handler: () => Promise<void>) => void;
+	on: (event: string, handler: AgentHandler) => void;
 };
 
 function createPiStub(execResult: ExecResult = { code: 0 }): PiStub {
 	const execCalls: ExecCall[] = [];
-	let agentEndHandler: (() => Promise<void>) | null = null;
+	const registeredEvents: string[] = [];
+	let agentSettledHandler: AgentHandler | null = null;
 
 	return {
 		execCalls,
-		get agentEndHandler() {
-			return agentEndHandler;
-		},
-		set agentEndHandler(handler: (() => Promise<void>) | null) {
-			agentEndHandler = handler;
+		registeredEvents,
+		get agentSettledHandler() {
+			return agentSettledHandler;
 		},
 		exec: async (command: string, args: string[]) => {
 			execCalls.push({ command, args });
 			return execResult;
 		},
-		on: (event: string, handler: () => Promise<void>) => {
-			if (event === "agent_end") {
-				agentEndHandler = handler;
+		on: (event: string, handler: AgentHandler) => {
+			registeredEvents.push(event);
+			if (event === "agent_settled") {
+				agentSettledHandler = handler;
 			}
 		},
 	};
 }
 
-test("handleAgentEnd sends OSC 777 notification and macOS sound", async () => {
+function setStdoutTTY(t: TestContext, isTTY: boolean | undefined): void {
+	const descriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+	Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: isTTY });
+	t.after(() => {
+		if (descriptor) {
+			Object.defineProperty(process.stdout, "isTTY", descriptor);
+		} else {
+			delete process.stdout.isTTY;
+		}
+	});
+}
+
+test("handleAgentSettled sends OSC 777 notification and macOS sound", async () => {
 	const pi = createPiStub();
 	const stdoutWrites: string[] = [];
 	const windowsToasts: Array<{ title: string; body: string }> = [];
 
-	await handleAgentEnd(pi, {
+	await handleAgentSettled(pi, {
+		mode: "tui",
+		stdoutIsTTY: true,
 		platform: "darwin",
 		env: {},
 		stdoutWrite: (chunk) => {
@@ -71,11 +89,13 @@ test("handleAgentEnd sends OSC 777 notification and macOS sound", async () => {
 	]);
 });
 
-test("handleAgentEnd uses Kitty notifications and still plays macOS sound", async () => {
+test("handleAgentSettled uses Kitty notifications and still plays macOS sound", async () => {
 	const pi = createPiStub();
 	const stdoutWrites: string[] = [];
 
-	await handleAgentEnd(pi, {
+	await handleAgentSettled(pi, {
+		mode: "tui",
+		stdoutIsTTY: true,
 		platform: "darwin",
 		env: { KITTY_WINDOW_ID: "kitty-window" },
 		stdoutWrite: (chunk) => {
@@ -95,12 +115,14 @@ test("handleAgentEnd uses Kitty notifications and still plays macOS sound", asyn
 	]);
 });
 
-test("handleAgentEnd uses Windows toast and skips sound on non-macOS", async () => {
+test("handleAgentSettled uses Windows toast and skips sound on Windows", async () => {
 	const pi = createPiStub();
 	const stdoutWrites: string[] = [];
 	const windowsToasts: Array<{ title: string; body: string }> = [];
 
-	await handleAgentEnd(pi, {
+	await handleAgentSettled(pi, {
+		mode: "tui",
+		stdoutIsTTY: true,
 		platform: "win32",
 		env: { WT_SESSION: "wt" },
 		stdoutWrite: (chunk) => {
@@ -127,9 +149,101 @@ test("getCompletionSoundCommand returns platform completion sound commands", () 
 	});
 });
 
-test("default extension registers agent_end handler", async () => {
-	const pi = createPiStub();
-	notifyExtension(pi);
+for (const mode of ["rpc", "json", "print"] as const) {
+	for (const platform of ["darwin", "linux", "win32"] as const) {
+		test(`completion is silent in ${mode} mode on ${platform}, even with a TTY`, async () => {
+			const pi = createPiStub();
+			const stdoutWrites: string[] = [];
+			const stderrWrites: string[] = [];
+			const windowsToasts: string[] = [];
 
-	assert.ok(pi.agentEndHandler);
+			await handleAgentSettled(pi, {
+				mode,
+				stdoutIsTTY: true,
+				platform,
+				env: platform === "win32" ? { WT_SESSION: "wt" } : {},
+				stdoutWrite: (chunk) => {
+					stdoutWrites.push(chunk);
+				},
+				stderrWrite: (chunk) => {
+					stderrWrites.push(chunk);
+				},
+				sendWindowsToast: (title, body) => {
+					windowsToasts.push(`${title}: ${body}`);
+				},
+			});
+
+			assert.deepEqual(stdoutWrites, []);
+			assert.deepEqual(stderrWrites, []);
+			assert.deepEqual(windowsToasts, []);
+			assert.deepEqual(pi.execCalls, []);
+		});
+	}
+}
+
+test("completion is silent when TUI stdout is redirected", async () => {
+	const pi = createPiStub();
+	const stdoutWrites: string[] = [];
+
+	await handleAgentSettled(pi, {
+		mode: "tui",
+		stdoutIsTTY: false,
+		platform: "linux",
+		env: {},
+		stdoutWrite: (chunk) => {
+			stdoutWrites.push(chunk);
+		},
+	});
+
+	assert.deepEqual(stdoutWrites, []);
+	assert.deepEqual(pi.execCalls, []);
 });
+
+for (const isTTY of [true, false, undefined]) {
+	test(`completion uses the runtime stdout TTY flag (${isTTY})`, async (t) => {
+		const pi = createPiStub();
+		const stdoutWrites: string[] = [];
+		setStdoutTTY(t, isTTY);
+
+		await handleAgentSettled(pi, {
+			mode: "tui",
+			platform: "linux",
+			env: {},
+			stdoutWrite: (chunk) => {
+				stdoutWrites.push(chunk);
+			},
+		});
+
+		assert.deepEqual(stdoutWrites, isTTY ? ["\u001b]777;notify;Pi;Ready for input\u0007"] : []);
+		assert.deepEqual(pi.execCalls, isTTY ? [
+			{ command: "paplay", args: ["/usr/share/sounds/freedesktop/stereo/complete.oga"] },
+		] : []);
+	});
+}
+
+test("default extension registers agent_settled notification work", () => {
+	const pi = createPiStub();
+	notifyExtension(pi as unknown as ExtensionAPI);
+
+	assert.ok(pi.agentSettledHandler);
+	assert.deepEqual(pi.registeredEvents, ["agent_settled"]);
+});
+
+for (const mode of ["rpc", "json", "print"] as const) {
+	test(`registered completion handler leaves ${mode} stdout and sound untouched`, async (t) => {
+		const pi = createPiStub();
+		const stdoutWrites: string[] = [];
+		notifyExtension(pi as unknown as ExtensionAPI);
+		assert.ok(pi.agentSettledHandler);
+		setStdoutTTY(t, true);
+		t.mock.method(process.stdout, "write", (chunk: string) => {
+			stdoutWrites.push(chunk);
+			return true;
+		});
+
+		await pi.agentSettledHandler({ type: "agent_settled" }, { mode, hasUI: mode === "rpc" });
+
+		assert.deepEqual(stdoutWrites, []);
+		assert.deepEqual(pi.execCalls, []);
+	});
+}

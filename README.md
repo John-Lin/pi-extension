@@ -51,6 +51,13 @@ Pi auto-discovers top-level extension files and directory entrypoints like `exte
 
 ## Usage
 
+### Completion notifications
+
+`extensions/notify.ts` sends a terminal notification and plays the local completion
+sound only after Pi's `agent_settled` event. Notifications require TUI mode and TTY
+stdout; RPC, JSON, print mode, and redirected stdout remain silent. Sound uses
+`afplay` on macOS or `paplay` with the freedesktop sound theme on Linux.
+
 ### Standalone Gemini skills
 
 Each Gemini skill is an independent distribution unit. Copy its entire directory
