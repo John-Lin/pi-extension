@@ -32,6 +32,7 @@ test("btw requires a prompt before opening the overlay", async () => {
 	let openedOverlay = false;
 
 	await command?.handler("   ", {
+		mode: "tui",
 		hasUI: true,
 		ui: {
 			notify(message: string, level: string) {
@@ -52,27 +53,39 @@ test("btw requires a prompt before opening the overlay", async () => {
 	]);
 });
 
-test("btw requires interactive mode for the bottom overlay UI", async () => {
-	const pi = createExtensionStub();
-	btwExtension(pi as never);
-	const command = pi.commands.get("btw");
-	assert.ok(command);
+// RPC mode reports hasUI for dialogs but cannot host custom terminal components.
+for (const { mode, hasUI } of [
+	{ mode: "rpc", hasUI: true },
+	{ mode: "print", hasUI: false },
+]) {
+	test(`btw requires interactive mode for the bottom overlay UI (${mode} mode)`, async () => {
+		const pi = createExtensionStub();
+		btwExtension(pi as never);
+		const command = pi.commands.get("btw");
+		assert.ok(command);
 
-	const notifications: Array<{ message: string; level: string }> = [];
+		const notifications: Array<{ message: string; level: string }> = [];
+		let openedOverlay = false;
 
-	await command?.handler("What changed?", {
-		hasUI: false,
-		ui: {
-			notify(message: string, level: string) {
-				notifications.push({ message, level });
+		await command?.handler("What changed?", {
+			mode,
+			hasUI,
+			ui: {
+				notify(message: string, level: string) {
+					notifications.push({ message, level });
+				},
+				async custom() {
+					openedOverlay = true;
+				},
 			},
-		},
-	});
+		});
 
-	assert.deepEqual(notifications, [
-		{
-			message: "/btw requires interactive mode.",
-			level: "warning",
-		},
-	]);
-});
+		assert.equal(openedOverlay, false);
+		assert.deepEqual(notifications, [
+			{
+				message: "/btw requires interactive mode.",
+				level: "warning",
+			},
+		]);
+	});
+}
