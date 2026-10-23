@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	type AssistantMessage,
 	fauxAssistantMessage,
 	fauxProvider,
 	fauxToolCall,
@@ -110,7 +111,10 @@ function extractTextFromContent(content: Message["content"]): string {
 		.join("");
 }
 
-function createUiHarness() {
+// Escape is the user's way to dismiss the overlay mid-answer.
+const ESCAPE_KEY = "\x1b";
+
+function createUiHarness({ pressEscapeWhen }: { pressEscapeWhen?: () => boolean } = {}) {
 	const notifications: Array<{ message: string; level: string }> = [];
 	let overlayOptions: unknown;
 	let rendered = "";
@@ -145,7 +149,10 @@ function createUiHarness() {
 			notify(message: string, level: string) {
 				notifications.push({ message, level });
 			},
-			async custom(factory: (...args: unknown[]) => { render: (width: number) => string[] }, options: unknown) {
+			async custom(
+				factory: (...args: unknown[]) => { render: (width: number) => string[]; handleInput: (data: string) => void },
+				options: unknown,
+			) {
 				openedOverlay = true;
 				overlayOptions = options;
 				let close!: () => void;
@@ -156,6 +163,13 @@ function createUiHarness() {
 				// Wait for the streamed answer to settle; the panel status leaves
 				// "answering" once the request finished or failed.
 				for (let attempt = 0; attempt < 200; attempt++) {
+					if (pressEscapeWhen?.()) {
+						component.handleInput(ESCAPE_KEY);
+						// Let the aborted request settle before taking the final render.
+						await new Promise((resolve) => setTimeout(resolve, 20));
+						rendered = component.render(80).join("\n");
+						return closed;
+					}
 					rendered = component.render(80).join("\n");
 					if (!rendered.includes("BTW is answering")) {
 						break;
@@ -181,20 +195,28 @@ async function runBtw({
 	response = fauxAssistantMessage("ok"),
 	sessionSetup = (sessionManager) => sessionManager.appendMessage(createUserTextMessage("hi")),
 	getSystemPrompt = () => MAIN_SYSTEM_PROMPT,
+	thinkingLevel,
+	pressEscapeWhileAnswering = false,
 }: {
 	question?: string;
 	models?: Array<{ id: string; reasoning?: boolean }>;
-	response?: ReturnType<typeof fauxAssistantMessage>;
+	response?: AssistantMessage | ((options: SimpleStreamOptions | undefined) => Promise<AssistantMessage>);
 	sessionSetup?: (sessionManager: SessionManager, faux: FauxProviderHandle) => void;
 	getSystemPrompt?: () => string;
+	thinkingLevel?: string;
+	pressEscapeWhileAnswering?: boolean;
 } = {}): Promise<BtwRun> {
 	const { faux, modelRegistry } = await createFauxModelRegistry(models);
-	const run: BtwRun = { context: undefined, options: undefined, ui: createUiHarness() };
+	const run: BtwRun = {
+		context: undefined,
+		options: undefined,
+		ui: createUiHarness({ pressEscapeWhen: () => pressEscapeWhileAnswering && run.context !== undefined }),
+	};
 	faux.setResponses([
 		(context, options) => {
 			run.context = context;
 			run.options = options;
-			return response;
+			return typeof response === "function" ? response(options) : response;
 		},
 	]);
 
@@ -213,6 +235,7 @@ async function runBtw({
 		sessionManager,
 		ui: run.ui.ui,
 		getSystemPrompt,
+		thinkingLevel,
 	});
 
 	return run;
@@ -267,7 +290,7 @@ test("btw sends the request through the session model registry", async () => {
 	assert.match(run.ui.rendered, /Registry-routed answer/);
 });
 
-test("btw uses the main agent system prompt for cache alignment", async () => {
+test("btw uses the main agent system prompt", async () => {
 	const run = await runBtw();
 
 	const systemMessage = run.context?.messages[0];
@@ -421,4 +444,49 @@ test("btw requests no reasoning when the session thinking level is off", async (
 
 	assert.ok(run.options, "expected provider to be called");
 	assert.equal(run.options.reasoning, undefined);
+});
+
+test("btw follows the runtime thinking level over the session's recorded level", async () => {
+	// pi restores or clamps the runtime level (CLI flag on resume, model limits)
+	// without recording a new session entry; the main agent uses the runtime level.
+	const run = await runBtw({
+		models: [{ id: "btw-test-model", reasoning: true }],
+		thinkingLevel: "low",
+		sessionSetup: (sessionManager) => {
+			sessionManager.appendThinkingLevelChange("xhigh");
+			sessionManager.appendMessage(createUserTextMessage("What changed?"));
+		},
+	});
+
+	assert.equal(run.options?.reasoning, "low");
+});
+
+test("btw requests no reasoning when the runtime thinking level is off", async () => {
+	const run = await runBtw({
+		models: [{ id: "btw-test-model", reasoning: true }],
+		thinkingLevel: "off",
+		sessionSetup: (sessionManager) => {
+			sessionManager.appendThinkingLevelChange("high");
+			sessionManager.appendMessage(createUserTextMessage("What changed?"));
+		},
+	});
+
+	assert.ok(run.options, "expected provider to be called");
+	assert.equal(run.options.reasoning, undefined);
+});
+
+test("btw aborts the side request when the user closes the overlay mid-answer", async () => {
+	const run = await runBtw({
+		pressEscapeWhileAnswering: true,
+		// Answer only once the request is aborted, like a provider cut off mid-stream.
+		response: (options) =>
+			new Promise((resolve) => {
+				options?.signal?.addEventListener("abort", () =>
+					resolve(fauxAssistantMessage("", { stopReason: "aborted", errorMessage: "Request was aborted" })),
+				);
+			}),
+	});
+
+	assert.equal(run.options?.signal?.aborted, true);
+	assert.doesNotMatch(run.ui.rendered, /BTW request failed/);
 });

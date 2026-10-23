@@ -71,7 +71,9 @@ function buildBtwMessages(ctx: ExtensionCommandContext, question: string): {
 
 	return {
 		messages,
-		thinkingLevel: sessionContext.thinkingLevel,
+		// The runtime level is what the main agent sends; pi can restore or clamp it
+		// without recording a session entry, so the entry is only a fallback.
+		thinkingLevel: ctx.thinkingLevel ?? sessionContext.thinkingLevel,
 	};
 }
 
