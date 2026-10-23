@@ -6,12 +6,12 @@
  * packages/coding-agent/examples/extensions/notify.ts
  * License: MIT
  *
- * Sends a native terminal notification when Pi is ready for input and, on
- * macOS, plays the local completion sound.
+ * Sends a native terminal notification when Pi is ready for input in an
+ * interactive TTY and plays the local completion sound on macOS and Linux.
  */
 
 import { execFile } from "node:child_process";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const NOTIFY_TITLE = "Pi";
 const NOTIFY_BODY = "Ready for input";
@@ -24,6 +24,8 @@ type RuntimeEnvironment = Record<string, string | undefined>;
 type TextWriter = (chunk: string) => void;
 
 type NotifyRuntimeOptions = {
+	mode: ExtensionContext["mode"];
+	stdoutIsTTY?: boolean;
 	platform?: PlatformName;
 	env?: RuntimeEnvironment;
 	stdoutWrite?: TextWriter;
@@ -118,10 +120,14 @@ export async function playCompletionSound(
 	}
 }
 
-export async function handleAgentEnd(
+export async function handleAgentSettled(
 	pi: PiExecutor,
-	options: NotifyRuntimeOptions = {},
+	options: NotifyRuntimeOptions,
 ): Promise<void> {
+	if (options.mode !== "tui" || !(options.stdoutIsTTY ?? process.stdout.isTTY)) {
+		return;
+	}
+
 	const platform = options.platform ?? process.platform;
 	const env = options.env ?? process.env;
 	const stdoutWrite = options.stdoutWrite ?? ((chunk: string) => {
@@ -137,7 +143,7 @@ export async function handleAgentEnd(
 }
 
 export default function (pi: ExtensionAPI) {
-	pi.on("agent_end", async () => {
-		await handleAgentEnd(pi);
+	pi.on("agent_settled", async (_event, ctx) => {
+		await handleAgentSettled(pi, { mode: ctx.mode });
 	});
 }
