@@ -15,12 +15,9 @@ import { pathToFileURL } from "node:url";
 import { validateInteraction } from "./gemini-interactions.mjs";
 
 export const INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-export const TYPESAFE_SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
-// Pinned rather than an alias: the selection criteria below are tuned against
-// this version, and an alias would silently change routing when it moves.
-const JEV_MODEL = "jev-1.14.0";
+export const DECISIONS_URL = "https://generativelanguage.googleapis.com/v1beta/decisions";
+const DECISION_MODEL = "gemini-decision-1";
 const TOKEN_ENV = "GEMINI_API_KEY";
-const TYPESAFE_TOKEN_ENV = "TYPESAFE_API_KEY";
 const AUTH_HEADER = "x-goog-api-key";
 
 // Pi stores credentials in auth.json keyed by provider name. The built-in
@@ -58,6 +55,7 @@ function parseTimeout(raw, fallback) {
 export function parseArgs(argv) {
 	const out = {
 		model: undefined,
+		automaticSelection: true,
 		purpose: undefined,
 		thinkingLevel: DEFAULT_THINKING_LEVEL,
 		timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -78,16 +76,20 @@ export function parseArgs(argv) {
 			out.raw = true;
 		} else if (arg === "--model") {
 			out.model = argv[++i] || out.model;
+			out.automaticSelection = false;
 		} else if (arg.startsWith("--model=")) {
 			out.model = arg.slice("--model=".length) || out.model;
+			out.automaticSelection = false;
 		} else if (arg === "--purpose") {
 			out.purpose = argv[++i] || out.purpose;
 		} else if (arg.startsWith("--purpose=")) {
 			out.purpose = arg.slice("--purpose=".length) || out.purpose;
 		} else if (arg === "--thinking") {
 			out.thinkingLevel = argv[++i] || out.thinkingLevel;
+			out.automaticSelection = false;
 		} else if (arg.startsWith("--thinking=")) {
 			out.thinkingLevel = arg.slice("--thinking=".length) || out.thinkingLevel;
+			out.automaticSelection = false;
 		} else if (arg === "--timeout") {
 			out.timeoutMs = parseTimeout(argv[++i], out.timeoutMs);
 		} else if (arg.startsWith("--timeout=")) {
@@ -104,6 +106,9 @@ export function parseArgs(argv) {
 export function usage() {
 	return `Usage:
   node search.mjs "<query>" [--purpose "<why>"] [--model <id>] [--thinking <level>] [--timeout <ms>] [--json] [--raw]
+
+By default, ${DECISION_MODEL} selects the search model and thinking level.
+Setting --model or --thinking skips automatic selection; unspecified values use the defaults below.
 
 Flags:
   --purpose     Why you need the research; the summary is written for it.
@@ -153,48 +158,18 @@ function resolveConfigValue(value, env) {
 	return env[value] || value;
 }
 
-export function resolveTypesafeApiKey(env = process.env) {
-	const apiKey = env[TYPESAFE_TOKEN_ENV];
-	return apiKey ? { apiKey, source: `env:${TYPESAFE_TOKEN_ENV}` } : undefined;
-}
-
 export function buildThinkingSelectionRequest(query) {
 	return {
-		state: { query },
-		model: JEV_MODEL,
+		input: JSON.stringify({ query }),
+		model: DECISION_MODEL,
 		questions: {
 			required_work: {
 				type: "choice",
-				instructions: {
-					question: "What kind of work is required to answer `query` reliably?",
-					focus: "Classify the work required, not the answer length, number of returned items, citations, or source authority.",
-				},
+				instructions: "What kind of work is required to answer `query` reliably? Classify the work required, not the answer length, number of returned items, citations, or source authority.",
 				criteria: {
-					direct_retrieval: {
-						what: "Find, copy, filter, or list facts explicitly available in sources.",
-						not_for: "Interpretation, inference, reconciling conflicting information, or recommendations.",
-						examples: [
-							"What is the latest stable Python version?",
-							"List the remaining 2026 NYSE and Nasdaq closure and early-close dates.",
-							"Is a typhoon warning active today?",
-						],
-					},
-					light_reasoning: {
-						what: "Interpret findings, compare related evidence, resolve limited ambiguity, reach a straightforward conclusion, or handle a simple planning or troubleshooting task.",
-						not_for: "Pure factual extraction or work with multiple interacting constraints, substantial conflicts, or several plausible causes.",
-						examples: [
-							"Explain differences between the NYSE and Nasdaq holiday schedules.",
-							"Identify a likely fix for a single clear configuration error.",
-						],
-					},
-					deep_reasoning: {
-						what: "Perform broad synthesis, multi-constraint comparison, multi-step planning, or troubleshoot problems with interacting constraints, substantial conflicting evidence, or multiple plausible causes.",
-						not_for: "Direct retrieval, simple interpretation, or a bounded task with one clear issue.",
-						examples: [
-							"Compare database migration strategies and recommend a rollout plan.",
-							"Troubleshoot an intermittent deployment failure with several plausible causes.",
-						],
-					},
+					direct_retrieval: "Find, copy, filter, or list facts explicitly available in sources. Not for: Interpretation, inference, reconciling conflicting information, or recommendations. Examples: What is the latest stable Python version? List the remaining 2026 NYSE and Nasdaq closure and early-close dates. Is a typhoon warning active today?",
+					light_reasoning: "Interpret findings, compare related evidence, resolve limited ambiguity, reach a straightforward conclusion, or handle a simple planning or troubleshooting task. Not for: Pure factual extraction or work with multiple interacting constraints, substantial conflicts, or several plausible causes. Examples: Explain differences between the NYSE and Nasdaq holiday schedules. Identify a likely fix for a single clear configuration error.",
+					deep_reasoning: "Perform broad synthesis, multi-constraint comparison, multi-step planning, or troubleshoot problems with interacting constraints, substantial conflicting evidence, or multiple plausible causes. Not for: Direct retrieval, simple interpretation, or a bounded task with one clear issue. Examples: Compare database migration strategies and recommend a rollout plan. Troubleshoot an intermittent deployment failure with several plausible causes.",
 				},
 			},
 		},
@@ -203,18 +178,22 @@ export function buildThinkingSelectionRequest(query) {
 
 export function selectGeminiConfiguration(selection) {
 	const answer = selection?.answers?.required_work;
-	const configuration = Object.hasOwn(GEMINI_CONFIGURATIONS, answer?.choice)
+	const configuration = typeof answer?.choice === "string" && Object.hasOwn(GEMINI_CONFIGURATIONS, answer.choice)
 		? GEMINI_CONFIGURATIONS[answer.choice]
 		: undefined;
-	if (!configuration || !Number.isFinite(answer?.confidence) || !answer?.probabilities || Array.isArray(answer.probabilities)) {
-		throw new Error("Jev returned an invalid Gemini configuration.");
+	const isProbability = (value) => Number.isFinite(value) && value >= 0 && value <= 1;
+	const probabilities = answer?.probabilities;
+	const validProbabilities = probabilities && typeof probabilities === "object" && !Array.isArray(probabilities)
+		&& Object.keys(GEMINI_CONFIGURATIONS).every((choice) => Object.hasOwn(probabilities, choice) && isProbability(probabilities[choice]));
+	if (!configuration || answer?.type !== "choice" || !isProbability(answer.confidence) || !validProbabilities) {
+		throw new Error("Gemini Decision returned an invalid Gemini configuration.");
 	}
 	return {
 		...configuration,
-		jev: {
+		decision: {
 			choice: answer.choice,
 			confidence: answer.confidence,
-			probabilities: answer.probabilities,
+			probabilities,
 		},
 	};
 }
@@ -322,12 +301,12 @@ export function extractCitations(interaction) {
 	return Array.from(seen.values());
 }
 
-function formatHuman({ model, thinkingLevel, jev, source, query, purpose, text, citations, stepTypes, showRaw }) {
+function formatHuman({ model, thinkingLevel, decision, source, query, purpose, text, citations, stepTypes, showRaw }) {
 	const lines = [];
 	lines.push(`Model: ${model} (thinking: ${thinkingLevel}, auth: ${source})`);
-	if (jev) {
-		const probabilities = Object.entries(jev.probabilities).map(([choice, probability]) => `${choice}=${probability}`).join(", ");
-		lines.push(`Jev: ${jev.choice} (confidence: ${jev.confidence}; probabilities: ${probabilities})`);
+	if (decision) {
+		const probabilities = Object.entries(decision.probabilities).map(([choice, probability]) => `${choice}=${probability}`).join(", ");
+		lines.push(`Decision: ${decision.choice} (confidence: ${decision.confidence}; probabilities: ${probabilities})`);
 	}
 	lines.push(`Query: ${query}`);
 	if (purpose) lines.push(`Purpose: ${purpose}`);
@@ -373,9 +352,8 @@ export async function main(argv = process.argv.slice(2)) {
 
 	let model = args.model || DEFAULT_MODEL;
 	let thinkingLevel = args.thinkingLevel;
-	let jev;
-	const typesafeCredentials = resolveTypesafeApiKey();
-	if (typesafeCredentials) {
+	let decision;
+	if (args.automaticSelection) {
 		try {
 			let selection;
 			for (let attempt = 0; attempt < 2; attempt++) {
@@ -384,12 +362,12 @@ export async function main(argv = process.argv.slice(2)) {
 				let res;
 				let payload;
 				try {
-					res = await fetch(TYPESAFE_SYSTEM_ONE_URL, {
+					res = await fetch(DECISIONS_URL, {
 						method: "POST",
 						headers: {
 							"content-type": "application/json",
 							accept: "application/json",
-							authorization: `Bearer ${typesafeCredentials.apiKey}`,
+							...buildAuthHeaders(apiKey),
 						},
 						body: JSON.stringify(buildThinkingSelectionRequest(args.query)),
 						signal: selectionSignal,
@@ -403,19 +381,19 @@ export async function main(argv = process.argv.slice(2)) {
 					selection = JSON.parse(payload);
 					break;
 				}
-				if (attempt === 0 && (res.status === 429 || res.status === 529)) {
+				if (attempt === 0 && (res.status === 408 || res.status === 429 || res.status >= 500)) {
 					await new Promise((resolve) => setTimeout(resolve, parseRetryAfterMs(res.headers.get("retry-after"))));
 					continue;
 				}
-				throw new Error(`Jev selection request failed (${res.status}): ${payload}`);
+				throw new Error(`Decision request failed (${res.status}): ${payload}`);
 			}
 			const configuration = selectGeminiConfiguration(selection);
 			model = configuration.model;
 			thinkingLevel = configuration.thinkingLevel;
-			jev = configuration.jev;
+			decision = configuration.decision;
 		} catch (err) {
 			({ model, thinkingLevel } = GEMINI_CONFIGURATIONS.direct_retrieval);
-			console.error(`Warning: Jev selection failed; continuing without Jev. ${describeError(err)}`);
+			console.error(`Warning: Gemini decision failed; continuing without automatic selection. ${describeError(err)}`);
 		}
 	}
 
@@ -463,7 +441,7 @@ export async function main(argv = process.argv.slice(2)) {
 	if (args.json) {
 		console.log(
 			JSON.stringify(
-				{ model, thinkingLevel, jev, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
+				{ model, thinkingLevel, decision, source, query: args.query, purpose: args.purpose, text, citations, steps: stepTypes },
 				null,
 				2,
 			),
@@ -475,7 +453,7 @@ export async function main(argv = process.argv.slice(2)) {
 		formatHuman({
 			model,
 			thinkingLevel,
-			jev,
+			decision,
 			source,
 			query: args.query,
 			purpose: args.purpose,
