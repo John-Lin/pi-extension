@@ -19,6 +19,7 @@ function decisionResponse(choice: string, confidence: number, probabilities: Rec
 // Grounding fixtures are recorded Google responses; decision cases follow the documented schema.
 for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-maps-search", "google_maps"]]) {
 	const module = await import(`../skills/${skill}/search.mjs`);
+	// Exercise grounding validation independently of automatic model selection.
 	const runSearch = (args: string[]) => module.main(tool === "google_search" ? [...args, "--model", "gemini-3.8-flash"] : args);
 	const sample = JSON.parse(readFileSync(new URL(`../skills/${skill}/fixtures/sample-interaction.json`, import.meta.url), "utf8"));
 
@@ -172,6 +173,31 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			});
 		}
 
+		for (const failure of ["HTTP quota", "grounding tool"]) {
+			test(`gemini-web-search reports ${failure} failure after a decision without switching models`, async (t) => {
+				const { stdout, stderr } = captureOutput(t);
+				const groundingFailure = failure === "HTTP quota"
+					? new Response("quota exceeded", { status: 429 })
+					: Response.json({
+						...sample,
+						steps: sample.steps.map((step) => step.type === "google_search_result" ? { ...step, is_error: true } : step),
+					});
+				const requests = captureRequests(t, [
+					decisionResponse("light_reasoning", 0.8, { direct_retrieval: 0.1, light_reasoning: 0.8, deep_reasoning: 0.1 }),
+					groundingFailure,
+				]);
+				assert.equal(await module.main(["test query", "--json"]), 1);
+				assert.equal(requests.length, 2);
+				assert.equal(requests[0].url, "https://generativelanguage.googleapis.com/v1beta/decisions");
+				assert.equal(requests[1].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+				assert.equal(JSON.parse(requests[1].body as string).model, "gemini-3.8-flash");
+				assert.deepEqual(stdout, []);
+				assert.deepEqual(stderr, failure === "HTTP quota"
+					? ["Error: Interactions request failed (429)", "Body: quota exceeded"]
+					: ["Error: google_search grounding failed."]);
+			});
+		}
+
 		test("gemini-web-search prints the decision and selected thinking level in human output", async (t) => {
 			const { stdout, stderr } = captureOutput(t);
 			captureRequests(t, [
@@ -275,7 +301,15 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 			test(`gemini-web-search falls back on a decision with ${name}`, async (t) => {
 				const { stdout, stderr } = captureOutput(t);
 				const requests = captureRequests(t, [
-					Response.json({ answers, usage: { total_input_tokens: 100, total_output_tokens: 0, total_tokens: 100 } }),
+					Response.json({
+						answers,
+						usage: {
+							total_input_tokens: 100,
+							input_tokens_by_modality: [{ modality: "text", tokens: 100 }],
+							total_output_tokens: 0,
+							total_tokens: 100,
+						},
+					}),
 					Response.json(sample),
 				]);
 				assert.equal(await module.main(["test query", "--json"]), 0);
