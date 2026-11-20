@@ -77,6 +77,16 @@ official documentation, rather than treating citation count as a quality score.
   review. High covered more edge cases but was slower and sometimes timed out.
 - Webhook answers required careful distinction between GUID deduplication,
   cryptographic replay protection, and atomic state updates.
+- The lock investigation contained wrong lock-matrix claims in both models;
+  Hydrogen incorrectly excluded ordinary VACUUM/ANALYZE from concurrent-index
+  conflicts. Check actual blockers against PostgreSQL's official lock matrix.
+- Fork-workflow answers overgeneralized secret isolation. Private-repository
+  policies and action versions matter; privileged jobs must not execute untrusted
+  artifacts. A `workflow_run: completed` trigger also needs a success check.
+- Hydrogen's grounding design mixed GenerateContent fields into an Interactions
+  workflow. Production uses the correct Interactions completion/search contract.
+- A second migration answer recommended disabling both validation timeouts.
+  Retain bounded lock acquisition and choose an appropriate execution budget.
 
 The comparison does **not** establish Hydrogen as safer overall. Treat security,
 privacy, and production-operation recommendations as research drafts requiring
