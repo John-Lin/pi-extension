@@ -44,7 +44,12 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 - Automatic selection uses `gemini-decision-1` through Google's
   [Decisions API](https://ai.google.dev/gemini-api/docs/decisions-api), with
   text instructions and contrastive criteria for three work classifications.
-  Each classification maps to a fixed search model and thinking level.
+  Direct retrieval uses Gemini 3.5 Flash-Lite at `high`; light reasoning uses
+  Gemini 4 Hydrogen at `low`; deep reasoning uses Hydrogen at `medium`.
+- Hydrogen supports `low`, `medium`, `high`, and `xhigh`, but not `minimal`.
+  Use explicit `--model` and `--thinking` flags for other configurations.
+  Higher levels can increase search queries, token costs, and complete-answer
+  latency; the script's request timeout still applies.
 - Decision network failures and HTTP 408, 429, or 5xx errors are retried once.
   If selection still fails or returns an invalid answer, the script warns and
   searches with the direct-retrieval configuration. Grounding failures remain
