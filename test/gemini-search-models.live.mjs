@@ -1,6 +1,6 @@
 // Run manually before changing search models; this calls the real, billable
 // Gemini API and is intentionally outside the offline npm test glob.
-// Usage: node --test test/gemini-search-models.live.mjs
+// Usage: GEMINI_LIVE_EVALUATION=1 node --test test/gemini-search-models.live.mjs
 // Help: node test/gemini-search-models.live.mjs --help
 
 import assert from "node:assert/strict";
@@ -32,7 +32,9 @@ const cases = [
 ];
 
 if (process.argv.includes("--help")) {
-	console.log("Usage: node --test test/gemini-search-models.live.mjs\n\nRuns 25 paid Google Search requests: 5 light queries at Flash/low and Hydrogen/low,\nand 5 deep queries at Flash/medium, Hydrogen/medium and Hydrogen/high.\nUses GEMINI_API_KEY or Pi's Google API key. No mocks or retries.\nStops on unexpected failures. A 120-second timeout at the exploratory high\nlevel is recorded as an unsuitable candidate, not a successful answer.\nPrints timings, usage, citations and a temporary artifact directory containing\nraw responses for manual quality review.\nUse Node's --test-name-pattern to select a smaller subset.\nThese small, single-run samples do not establish a latency SLA or quality score.");
+	console.log("Usage: GEMINI_LIVE_EVALUATION=1 node --test test/gemini-search-models.live.mjs\n\nRequires explicit opt-in before any credentials or paid requests are used.\nRuns 25 paid Google Search requests: 5 light queries at Flash/low and Hydrogen/low,\nand 5 deep queries at Flash/medium, Hydrogen/medium and Hydrogen/high.\nUses GEMINI_API_KEY or Pi's Google API key. No mocks or retries.\nStops on unexpected failures. A 120-second timeout at the exploratory high\nlevel is recorded as an unsuitable candidate, not a successful answer.\nPrints timings, usage, citations and a temporary artifact directory containing\nraw responses for manual quality review.\nUse Node's --test-name-pattern to select a smaller subset.\nThese small, single-run samples do not establish a latency SLA or quality score.");
+} else if (process.env.GEMINI_LIVE_EVALUATION !== "1") {
+	test("live model evaluation requires explicit opt-in", { skip: "Set GEMINI_LIVE_EVALUATION=1 to authorize paid requests." }, () => {});
 } else {
 	const directory = mkdtempSync(join(tmpdir(), "gemini-search-eval-"));
 	let stopped = false;
