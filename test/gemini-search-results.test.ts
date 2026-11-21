@@ -118,11 +118,12 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 
 	if (tool === "google_search") {
 		for (const [flags, model, thinkingLevel] of [
-			[["--model", "gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "medium"],
-			[["--model=gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "medium"],
-			[["--thinking", "low"], "gemini-4-hydrogen", "low"],
-			[["--thinking=medium"], "gemini-4-hydrogen", "medium"],
-			[["--thinking=xhigh"], "gemini-4-hydrogen", "xhigh"],
+			[["--model", "gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "high"],
+			[["--model=gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "high"],
+			[["--model", "gemini-4-hydrogen"], "gemini-4-hydrogen", "high"],
+			[["--thinking", "low"], "gemini-3.5-flash-lite", "low"],
+			[["--thinking=medium"], "gemini-3.5-flash-lite", "medium"],
+			[["--model", "gemini-4-hydrogen", "--thinking=xhigh"], "gemini-4-hydrogen", "xhigh"],
 			[["--model", "gemini-4-hydrogen", "--thinking", "high"], "gemini-4-hydrogen", "high"],
 		] as const) {
 			test(`gemini-web-search bypasses decisions for explicit ${flags.join(" ")}`, async (t) => {

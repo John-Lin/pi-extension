@@ -9,9 +9,10 @@ not a statistical model ranking or a production latency SLA.
 - Keep `gemini-3.5-flash-lite` at `high` for direct retrieval and decision failures.
 - Keep `gemini-decision-1`, its classification criteria, grounding validation,
   stateless requests, and the 120-second request timeout unchanged.
-- Use Hydrogen as the manual default model, but explicitly retain the application's
-  `medium` thinking default rather than inheriting the provider's `high` default.
-- Do not promote `high` to an automatic route: two observed high-level requests
+- Use Flash-Lite/high as the manual default. Explicit flags override only the
+  supplied value: an unspecified model remains Flash-Lite, and unspecified
+  thinking remains high, including when another model is selected manually.
+- Do not use Hydrogen/high for automatic reasoning: two such requests
   timed out at 120 seconds. Higher reasoning depth did improve some migration
   details, but did not consistently fit the existing interactive timeout.
 

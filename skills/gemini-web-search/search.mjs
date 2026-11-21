@@ -24,9 +24,8 @@ const AUTH_HEADER = "x-goog-api-key";
 // provider for Google AI is called "google".
 const PI_AUTH_PROVIDER = "google";
 
-const DEFAULT_MODEL = "gemini-4-hydrogen";
-const LOW_LATENCY_MODEL = "gemini-3.5-flash-lite";
-const DEFAULT_THINKING_LEVEL = "medium";
+const DEFAULT_MODEL = "gemini-3.5-flash-lite";
+const DEFAULT_THINKING_LEVEL = "high";
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 // Node's built-in fetch stops waiting for response headers after 300 s
@@ -112,7 +111,7 @@ Setting --model or --thinking skips automatic selection; unspecified values use 
 
 Flags:
   --purpose     Why you need the research; the summary is written for it.
-  --model       Default model: ${DEFAULT_MODEL} (${LOW_LATENCY_MODEL} for lower latency).
+  --model       Default model: ${DEFAULT_MODEL}.
   --thinking    low | medium | high | xhigh for Hydrogen (manual default: ${DEFAULT_THINKING_LEVEL}).
                 minimal is supported by Flash-Lite, not Hydrogen.
   --timeout     Request timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}, maximum: ${MAX_TIMEOUT_MS}).

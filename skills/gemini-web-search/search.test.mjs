@@ -3,24 +3,24 @@ import assert from "node:assert/strict";
 
 import { buildRequestBody, parseArgs } from "./search.mjs";
 
-test("parseArgs defaults thinking level to medium and accepts an override", () => {
-	assert.equal(parseArgs(["q"]).thinkingLevel, "medium");
-	assert.equal(parseArgs(["--thinking", "high", "q"]).thinkingLevel, "high");
+test("parseArgs defaults thinking level to high and accepts an override", () => {
+	assert.equal(parseArgs(["q"]).thinkingLevel, "high");
+	assert.equal(parseArgs(["--thinking", "medium", "q"]).thinkingLevel, "medium");
 	assert.equal(parseArgs(["--thinking=low", "q"]).thinkingLevel, "low");
 });
 
 test("buildRequestBody sends the selected Gemini thinking level", () => {
-	const high = buildRequestBody({
+	const selectedLevel = buildRequestBody({
 		model: "gemini-3.6-flash",
 		query: "vite 7 breaking changes",
 		purpose: "upgrade plan",
-		thinkingLevel: "high",
+		thinkingLevel: "low",
 	});
 	const defaultLevel = buildRequestBody({
 		model: "gemini-3.6-flash",
 		query: "vite 7 breaking changes",
 		purpose: "upgrade plan",
 	});
-	assert.deepEqual(high.generation_config, { thinking_level: "high" });
-	assert.deepEqual(defaultLevel.generation_config, { thinking_level: "medium" });
+	assert.deepEqual(selectedLevel.generation_config, { thinking_level: "low" });
+	assert.deepEqual(defaultLevel.generation_config, { thinking_level: "high" });
 });

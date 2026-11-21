@@ -54,8 +54,8 @@ test("a non-numeric --timeout is rejected instead of crashing later", () => {
 	assert.throws(() => parseArgs(["q", "--timeout=abc"]), /timeout/i);
 });
 
-test("usage advertises Gemini 4 Hydrogen as the default model", () => {
-	assert.match(usage(), /Default model: gemini-4-hydrogen/);
+test("usage advertises Gemini 3.5 Flash-Lite as the manual default model", () => {
+	assert.match(usage(), /Default model: gemini-3\.5-flash-lite/);
 	assert.match(usage(), /GEMINI_API_KEY/);
 });
 
