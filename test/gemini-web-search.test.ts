@@ -54,8 +54,8 @@ test("a non-numeric --timeout is rejected instead of crashing later", () => {
 	assert.throws(() => parseArgs(["q", "--timeout=abc"]), /timeout/i);
 });
 
-test("usage advertises Gemini 3.8 Flash as the default model", () => {
-	assert.match(usage(), /Default model: gemini-3\.8-flash/);
+test("usage advertises Gemini 3.5 Flash-Lite as the manual default model", () => {
+	assert.match(usage(), /Default model: gemini-3\.5-flash-lite/);
 	assert.match(usage(), /GEMINI_API_KEY/);
 });
 
@@ -143,8 +143,8 @@ test("buildThinkingSelectionRequest sends query data and text criteria to Gemini
 
 for (const [choice, model, thinkingLevel, probabilities] of [
 	["direct_retrieval", "gemini-3.5-flash-lite", "high", { direct_retrieval: 0.7, light_reasoning: 0.2, deep_reasoning: 0.1 }],
-	["light_reasoning", "gemini-3.8-flash", "low", { direct_retrieval: 0.2, light_reasoning: 0.7, deep_reasoning: 0.1 }],
-	["deep_reasoning", "gemini-3.8-flash", "medium", { direct_retrieval: 0.1, light_reasoning: 0.2, deep_reasoning: 0.7 }],
+	["light_reasoning", "gemini-4-hydrogen", "low", { direct_retrieval: 0.2, light_reasoning: 0.7, deep_reasoning: 0.1 }],
+	["deep_reasoning", "gemini-4-hydrogen", "medium", { direct_retrieval: 0.1, light_reasoning: 0.2, deep_reasoning: 0.7 }],
 ] as const) {
 	test(`selectGeminiConfiguration routes ${choice} and exposes decision metadata`, () => {
 		assert.deepEqual(geminiSearch.selectGeminiConfiguration({

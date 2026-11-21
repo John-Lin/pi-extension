@@ -33,21 +33,11 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 
 ## Notes
 
-- Search requests use `store: false` to disable Interactions API object storage.
-  Decision requests send the query to Google; search requests send the query and
-  purpose. This is not a guarantee of zero provider retention.
-- Only completed interactions with successful Google Search execution are printed.
-  A search that finds no matches is distinct from missing or failed grounding.
-- Citation URLs are Google redirect URLs that resolve to the real source on
-  click; the `title` carries the source domain.
-- A search-grounding 429 is reported rather than switching to another model.
-- Automatic selection uses `gemini-decision-1` through Google's
-  [Decisions API](https://ai.google.dev/gemini-api/docs/decisions-api), with
-  text instructions and contrastive criteria for three work classifications.
-  Each classification maps to a fixed search model and thinking level.
-- Decision network failures and HTTP 408, 429, or 5xx errors are retried once.
-  If selection still fails or returns an invalid answer, the script warns and
-  searches with the direct-retrieval configuration. Grounding failures remain
-  fatal; they never trigger another model.
-- JSON output includes `decision` (choice, confidence, and probabilities) after
-  successful automatic selection. Human output includes a `Decision:` line.
+- Queries and purposes go to Google. `store: false` disables stored Interaction
+  objects, not provider retention.
+- Only completed, successfully grounded responses are printed. No matches is
+  distinct from failed grounding. Report grounding errors, including 429,
+  rather than switching models.
+- Citation URLs are Google redirects; source domains appear in citation titles.
+- If automatic selection fails, the script warns and uses its direct-retrieval
+  fallback.

@@ -20,7 +20,7 @@ function decisionResponse(choice: string, confidence: number, probabilities: Rec
 for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-maps-search", "google_maps"]]) {
 	const module = await import(`../skills/${skill}/search.mjs`);
 	// Exercise grounding validation independently of automatic model selection.
-	const runSearch = (args: string[]) => module.main(tool === "google_search" ? [...args, "--model", "gemini-3.8-flash"] : args);
+	const runSearch = (args: string[]) => module.main(tool === "google_search" ? [...args, "--model", "gemini-4-hydrogen"] : args);
 	const sample = JSON.parse(readFileSync(new URL(`../skills/${skill}/fixtures/sample-interaction.json`, import.meta.url), "utf8"));
 
 	test(`${skill} returns a completed grounded answer without storing the interaction`, async (t) => {
@@ -118,11 +118,13 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 
 	if (tool === "google_search") {
 		for (const [flags, model, thinkingLevel] of [
-			[["--model", "gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "medium"],
-			[["--model=gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "medium"],
-			[["--thinking", "low"], "gemini-3.8-flash", "low"],
-			[["--thinking=medium"], "gemini-3.8-flash", "medium"],
-			[["--model", "gemini-3.8-flash", "--thinking", "high"], "gemini-3.8-flash", "high"],
+			[["--model", "gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "high"],
+			[["--model=gemini-3.5-flash-lite"], "gemini-3.5-flash-lite", "high"],
+			[["--model", "gemini-4-hydrogen"], "gemini-4-hydrogen", "high"],
+			[["--thinking", "low"], "gemini-3.5-flash-lite", "low"],
+			[["--thinking=medium"], "gemini-3.5-flash-lite", "medium"],
+			[["--model", "gemini-4-hydrogen", "--thinking=xhigh"], "gemini-4-hydrogen", "xhigh"],
+			[["--model", "gemini-4-hydrogen", "--thinking", "high"], "gemini-4-hydrogen", "high"],
 		] as const) {
 			test(`gemini-web-search bypasses decisions for explicit ${flags.join(" ")}`, async (t) => {
 				const { stdout, stderr } = captureOutput(t);
@@ -143,8 +145,8 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 
 		for (const [choice, model, thinkingLevel, probabilities] of [
 			["direct_retrieval", "gemini-3.5-flash-lite", "high", { direct_retrieval: 0.8, light_reasoning: 0.1, deep_reasoning: 0.1 }],
-			["light_reasoning", "gemini-3.8-flash", "low", { direct_retrieval: 0.1, light_reasoning: 0.8, deep_reasoning: 0.1 }],
-			["deep_reasoning", "gemini-3.8-flash", "medium", { direct_retrieval: 0.1, light_reasoning: 0.1, deep_reasoning: 0.8 }],
+			["light_reasoning", "gemini-4-hydrogen", "low", { direct_retrieval: 0.1, light_reasoning: 0.8, deep_reasoning: 0.1 }],
+			["deep_reasoning", "gemini-4-hydrogen", "medium", { direct_retrieval: 0.1, light_reasoning: 0.1, deep_reasoning: 0.8 }],
 		] as const) {
 			test(`gemini-web-search applies Gemini's ${choice} decision before grounding`, async (t) => {
 				const { stdout, stderr } = captureOutput(t);
@@ -190,7 +192,7 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 				assert.equal(requests.length, 2);
 				assert.equal(requests[0].url, "https://generativelanguage.googleapis.com/v1beta/decisions");
 				assert.equal(requests[1].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
-				assert.equal(JSON.parse(requests[1].body as string).model, "gemini-3.8-flash");
+				assert.equal(JSON.parse(requests[1].body as string).model, "gemini-4-hydrogen");
 				assert.deepEqual(stdout, []);
 				assert.deepEqual(stderr, failure === "HTTP quota"
 					? ["Error: Interactions request failed (429)", "Body: quota exceeded"]
@@ -205,7 +207,7 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 				Response.json(sample),
 			]);
 			assert.equal(await module.main(["test query"]), 0);
-			assert.match(stdout[0], /^Model: gemini-3\.8-flash \(thinking: low, auth: env:GEMINI_API_KEY\)$/m);
+			assert.match(stdout[0], /^Model: gemini-4-hydrogen \(thinking: low, auth: env:GEMINI_API_KEY\)$/m);
 			assert.match(stdout[0], /^Decision: light_reasoning \(confidence: 0\.78; probabilities: deep_reasoning=0\.12, light_reasoning=0\.78, direct_retrieval=0\.1\)$/m);
 			assert.deepEqual(stderr, []);
 		});
@@ -223,7 +225,7 @@ for (const [skill, tool] of [["gemini-web-search", "google_search"], ["gemini-ma
 				assert.equal(requests[0].url, "https://generativelanguage.googleapis.com/v1beta/decisions");
 				assert.equal(requests[1].url, requests[0].url);
 				assert.notEqual(requests[0].signal, requests[1].signal);
-				assert.equal(JSON.parse(requests[2].body as string).model, "gemini-3.8-flash");
+				assert.equal(JSON.parse(requests[2].body as string).model, "gemini-4-hydrogen");
 				assert.equal(JSON.parse(stdout[0]).thinkingLevel, "low");
 				assert.deepEqual(stderr, []);
 			});
