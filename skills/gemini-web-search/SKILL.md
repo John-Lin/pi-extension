@@ -13,7 +13,7 @@ section.
 
 No npm install required (uses Node built-in `fetch`). Needs a Gemini API key —
 `GEMINI_API_KEY`, or the `google` api_key entry in pi's `~/.pi/agent/auth.json`.
-Set `TYPESAFE_API_KEY` to let TypeSafe Jev select Gemini's model and thinking level.
+The same key authenticates both automatic model selection and web search.
 
 ## Usage
 
@@ -26,21 +26,28 @@ node search.mjs "<what to search>" --purpose "<why you need this>"
 
 - **Always pass `--purpose`.** The summary is written for it: each finding is
   reported as why it matters for that purpose.
-- **Omit `--model` and `--thinking` by default.** Jev selects them when
-  configured; otherwise the script uses its Gemini defaults.
+- **Omit `--model` and `--thinking` by default.** Gemini Decision 1 selects
+  the search model and thinking level.
+- **Set either flag to choose manually.** This skips automatic selection;
+  unspecified values use the defaults shown by `--help`.
 
 ## Notes
 
-- Requests use `store: false` to disable Interactions API object storage. Queries
-  and purposes still go to Google; this is not a guarantee of zero provider retention.
+- Search requests use `store: false` to disable Interactions API object storage.
+  Decision requests send the query to Google; search requests send the query and
+  purpose. This is not a guarantee of zero provider retention.
 - Only completed interactions with successful Google Search execution are printed.
   A search that finds no matches is distinct from missing or failed grounding.
 - Citation URLs are Google redirect URLs that resolve to the real source on
   click; the `title` carries the source domain.
-- A 429 means the search-grounding quota is exhausted — report it rather than
-  switching to another model.
-- With `TYPESAFE_API_KEY`, Jev chooses between Gemini 3.8 Flash at `medium` or
-  `low`, and Gemini 3.5 Flash-Lite at `high`. Transient selection failures
-  are retried once; if selection still fails, the script warns and uses Gemini
-  3.5 Flash-Lite at `high` without Jev. Without it, `--model` and `--thinking`
-  control the Google request.
+- A search-grounding 429 is reported rather than switching to another model.
+- Automatic selection uses `gemini-decision-1` through Google's
+  [Decisions API](https://ai.google.dev/gemini-api/docs/decisions-api), with
+  text instructions and contrastive criteria for three work classifications.
+  Each classification maps to a fixed search model and thinking level.
+- Decision network failures and HTTP 408, 429, or 5xx errors are retried once.
+  If selection still fails or returns an invalid answer, the script warns and
+  searches with the direct-retrieval configuration. Grounding failures remain
+  fatal; they never trigger another model.
+- JSON output includes `decision` (choice, confidence, and probabilities) after
+  successful automatic selection. Human output includes a `Decision:` line.
